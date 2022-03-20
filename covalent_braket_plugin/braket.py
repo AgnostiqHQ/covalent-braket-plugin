@@ -18,7 +18,7 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-"""AWS Braket Managed Jobs executor plugin for the Covalent dispatcher."""
+"""AWS Braket Hybrid Jobs executor plugin for the Covalent dispatcher."""
 
 import base64
 import os
@@ -41,6 +41,13 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ["HOME"], ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "",
+    "s3_bucket_name": "covalent-braket-job-resources",
+    "ecr_repo_name": "covalent-braket-job-images",
+    "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
+    "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+    "classical_device": "ml.m5.large",
+    "storage": 30,
+    "time_limit": 300,
     "cache_dir": "/tmp/covalent",
     "poll_freq": 30,
 }
@@ -48,10 +55,34 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
 executor_plugin_name = "BraketExecutor"
 
 class BraketExecutor(BaseExecutor):
-    """AWS Braket Managed Jobs executor plugin class."""
+    """AWS Braket Hybrid Jobs executor plugin class."""
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        credentials: str,
+        profile: str,
+        s3_bucket_name: str,
+        ecr_repo_name: str,
+        braket_job_execution_role_name: str,
+        quantum_device: str,
+        classical_device: str,
+        storage: int,
+        time_limit: int,
+        poll_freq: int,
+        **kwargs
+    ):
         super().__init__(**kwargs)
+
+        self.credentials = credentials
+        self.profile = profile
+        self.s3_bucket_name = s3_bucket_name
+        self.ecr_repo_name = ecr_repo_name
+        self.braket_job_execution_role_name = braket_job_execution_role_name
+        self.quantum_device = quantum_device
+        self.classical_device = classical_device
+        self.storage = storage
+        self.time_limit = time_limit
+        self.poll_freq = poll_freq
 
     def execute(
         self,
@@ -94,4 +125,208 @@ class BraketExecutor(BaseExecutor):
                 kwargs,
             )
 
+            braket = boto3.client("braket")
+
+            job = braket.create_job(
+                algorithmSpecification={
+                    "containerImage": {
+                        "uri": ecr_repo_uri,
+                    },
+                },
+                checkpointConfig={
+                    "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
+                },
+                deviceConfig={
+                    "device": self.quantum_device,
+                },
+                instanceConfig={
+                    "instanceType": self.classical_device,
+                    "volumeSizeInGb": self.storage,
+                },
+                jobName=f"covalent-{image_tag}",
+                outputDataConfig={
+                    "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
+                },
+                roleArn=f"arn:aws:iam::{account}:role/{self.braket_job_execution_role_name}",
+                stoppingCondition={
+                    "maxRuntimeInSeconds": self.time_limit,
+                },
+            )
+
+            job_arn = job["jobArn"]
+            raise job_arn
+
             return None, "", ""
+
+    def _format_exec_script(
+        self,
+        func_filename: str,
+        result_filename: str,
+        docker_working_dir: str,
+        args: List,
+        kwargs: Dict,
+    ) -> str:
+        """Create an executable Python script which executes the task.
+
+        Args:
+            func_filename: Name of the pickled function.
+            result_filename: Name of the pickled result.
+            docker_working_dir: Name of the working directory in the container.
+            args: Positional arguments consumed by the task.
+            kwargs: Keyword arguments consumed by the task.
+
+        Returns:
+            script: String object containing the executable Python script.
+        """
+
+        exec_script = """
+import os
+import boto3
+import cloudpickle as pickle
+
+local_func_filename = os.path.join("{docker_working_dir}", "{func_filename}")
+local_result_filename = os.path.join("{docker_working_dir}", "{result_filename}")
+
+s3 = boto3.client("s3")
+s3.download_file("{s3_bucket_name}", "{func_filename}", local_func_filename)
+
+with open(local_func_filename, "rb") as f:
+    function = pickle.load(f)
+
+result = function(*{args}, **{kwargs})
+
+with open(local_result_filename, "wb") as f:
+    pickle.dump(result, f)
+
+s3.upload_file(local_result_filename, "{s3_bucket_name}", "{result_filename}")
+""".format(
+            func_filename=func_filename,
+            args=args,
+            kwargs=kwargs,
+            s3_bucket_name=self.s3_bucket_name,
+            result_filename=result_filename,
+            docker_working_dir=docker_working_dir,
+        )
+
+        return exec_script
+
+    def _format_dockerfile(self, exec_script_filename: str, docker_working_dir: str) -> str:
+        """Create a Dockerfile which wraps an executable Python task.
+        
+        Args:
+            exec_script_filename: Name of the executable Python script.
+            docker_working_dir: Name of the working directory in the container.
+
+        Returns:
+            dockerfile: String object containing a Dockerfile.
+        """
+
+        dockerfile = """
+FROM python:3.8-slim-buster
+
+RUN apt-get update && apt-get install -y \\
+  gcc \\
+  && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir --use-feature=in-tree-build boto3 cloudpickle pennylane
+
+WORKDIR {docker_working_dir}
+
+COPY {func_basename} {docker_working_dir}
+
+ENTRYPOINT [ "python" ]
+CMD ["{docker_working_dir}/{func_basename}"]
+""".format(
+            func_basename=os.path.basename(exec_script_filename),
+            docker_working_dir=docker_working_dir,
+        )
+
+        return dockerfile
+
+    def _package_and_upload(
+        self,
+        function: TransportableObject,
+        image_tag: str,
+        task_results_dir: str,
+        result_filename: str,
+        args: List,
+        kwargs: Dict,
+    ) -> str:
+        """Package a task using Docker and upload it to AWS ECR.
+        
+        Args:
+            function: A callable Python function.
+            image_tag: Tag used to identify the Docker image.
+            task_results_dir: Local directory where task results are stored.
+            result_filename: Name of the pickled result.
+            args: Positional arguments consumed by the task.
+            kwargs: Keyword arguments consumed by the task.
+
+        Returns:
+            ecr_repo_uri: URI of the repository where the image was uploaded.
+        """
+
+        func_filename = f"func-{image_tag}.pkl"
+        docker_working_dir = "/opt/ml/code"
+
+        with tempfile.NamedTemporaryFile(dir=self.cache_dir) as function_file:
+            # Write serialized function to file
+            pickle.dump(function.get_deserialized(), function_file)
+            function_file.flush()
+
+            # Upload pickled function to S3
+            s3 = boto3.client("s3")
+            s3.upload_file(function_file.name, self.s3_bucket_name, func_filename)
+
+        with tempfile.NamedTemporaryFile(
+            dir=self.cache_dir, mode="w", suffix=".py"
+        ) as exec_script_file, tempfile.NamedTemporaryFile(
+            dir=self.cache_dir, mode="w"
+        ) as dockerfile_file:
+            # Write execution script to file
+            exec_script = self._format_exec_script(
+                func_filename,
+                result_filename,
+                docker_working_dir,
+                args,
+                kwargs,
+            )
+            exec_script_file.write(exec_script)
+            exec_script_file.flush()
+
+            # Write Dockerfile to file
+            dockerfile = self._format_dockerfile(exec_script_file.name, docker_working_dir)
+            dockerfile_file.write(dockerfile)
+            dockerfile_file.flush()
+
+            local_dockerfile = os.path.join(task_results_dir, f"Dockerfile_{image_tag}")
+            shutil.copyfile(dockerfile_file.name, local_dockerfile)
+
+            # Build the Docker image
+            docker_client = docker.from_env()
+            image, build_log = docker_client.images.build(
+                path=self.cache_dir, dockerfile=dockerfile_file.name, tag=image_tag
+            )
+
+        # ECR config
+        ecr = boto3.client("ecr")
+
+        ecr_username = "AWS"
+        ecr_credentials = ecr.get_authorization_token()["authorizationData"][0]
+        ecr_password = (
+            base64.b64decode(ecr_credentials["authorizationToken"])
+            .replace(b"AWS:", b"")
+            .decode("utf-8")
+        )
+        ecr_registry = ecr_credentials["proxyEndpoint"]
+        ecr_repo_uri = f"{ecr_registry.replace('https://', '')}/{self.ecr_repo_name}:{image_tag}"
+
+        docker_client.login(username=ecr_username, password=ecr_password, registry=ecr_registry)
+
+        # Tag the image
+        image.tag(ecr_repo_uri, tag=image_tag)
+
+        # Push to ECR
+        response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
+
+        return ecr_repo_uri
+
