@@ -9,7 +9,7 @@
 
 </div>
 
-## Covalent Executor Plugins
+## Covalent Braket Hybrid Jobs Plugin
 
 Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with [AWS Braket Hybrid Jobs](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs.html) by containerizing hybrid tasks and uploading them to the Elastic Container Registry. In order for workflows to be deployable, users must have AWS credentials allowing access to Braket, S3, ECR, and some other services. Users will need additional permissions to provision or manage cloud infrastructure used by this plugin.
 
