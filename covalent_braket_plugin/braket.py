@@ -41,7 +41,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ["HOME"], ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "",
-    "s3_bucket_name": "covalent-braket-job-resources",
+    "s3_bucket_name": "amazon-braket-covalent-job-resources",
     "ecr_repo_name": "covalent-braket-job-images",
     "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
     "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
@@ -154,9 +154,10 @@ class BraketExecutor(BaseExecutor):
             )
 
             job_arn = job["jobArn"]
-            raise job_arn
 
-            return None, "", ""
+            self._poll_braket_job(braket, job_arn)
+
+            return self._query_result(result_filename, task_results_dir, job_arn, image_tag)
 
     def _format_exec_script(
         self,
@@ -227,14 +228,18 @@ FROM python:3.8-slim-buster
 RUN apt-get update && apt-get install -y \\
   gcc \\
   && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir --use-feature=in-tree-build boto3 cloudpickle pennylane
+RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \\
+  amazon-braket-pennylane-plugin \\
+  boto3==1.20.48 \\
+  cloudpickle==2.0.0 \\
+  pennylane==0.16.0 \\
+  sagemaker-training
 
 WORKDIR {docker_working_dir}
 
 COPY {func_basename} {docker_working_dir}
 
-ENTRYPOINT [ "python" ]
-CMD ["{docker_working_dir}/{func_basename}"]
+ENV SAGEMAKER_PROGRAM {func_basename}
 """.format(
             func_basename=os.path.basename(exec_script_filename),
             docker_working_dir=docker_working_dir,
@@ -329,4 +334,93 @@ CMD ["{docker_working_dir}/{func_basename}"]
         response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
 
         return ecr_repo_uri
+
+    def get_status(self, braket, job_arn: str) -> str:
+        """Query the status of a previously submitted Braket hybrid job.
+
+        Args:
+            braket: Braket client object.
+            job_arn: ARN used to identify a Braket hybrid job.
+
+        Returns:
+            status: String describing the job status.
+        """
+
+        job = braket.get_job(jobArn=job_arn)
+        status = job["status"]
+
+        return status
+
+    def _poll_braket_job(self, braket, job_arn: str) -> None:
+        """Poll a Braket hybrid job until completion.
+
+        Args:
+            braket: Braket client object.
+            job_arn: ARN used to identify a Braket hybrid job.
+
+        Returns:
+            None
+        """
+
+        status = self.get_status(braket, job_arn)
+
+        while status not in ["COMPLETED", "FAILED", "CANCELLED"]:
+            time.sleep(self.poll_freq)
+            status = self.get_status(braket, job_arn)
+
+        if status == "FAILED":
+            failure_reason = braket.get_job(jobArn=job_arn)["failureReason"]
+            raise Exception(failure_reason)
+
+    def _query_result(
+        self,
+        result_filename: str,
+        task_results_dir: str,
+        job_arn: str,
+        image_tag: str,
+    ) -> Tuple[Any, str, str]:
+        """Query and retrieve a completed job's result.
+
+        Args:
+            result_filename: Name of the pickled result file.
+            task_results_dir: Local directory where task results are stored.
+            job_arn: Identifier used to identify a Braket hybrid job.
+            image_tag: Tag used to identify the log file.
+
+        Returns:
+            result: The task's result, as a Python object.
+            logs: The stdout and stderr streams corresponding to the task.
+            empty_string: A placeholder empty string.
+        """
+
+        local_result_filename = os.path.join(task_results_dir, result_filename)
+
+        s3 = boto3.client("s3")
+        s3.download_file(self.s3_bucket_name, result_filename, local_result_filename)
+
+        with open(local_result_filename, "rb") as f:
+            result = pickle.load(f)
+        os.remove(local_result_filename)
+
+        logs = boto3.client("logs")
+
+        log_group_name = "/aws/braket/jobs"
+        log_stream_prefix = "covalent-{image_tag}"
+        log_stream_name = logs.describe_log_streams(
+            logGroupName=log_group_name,
+            logStreamNamePrefix=log_stream_prefix
+        )["logStreams"][0]["logStreamName"]
+
+        # TODO: This should be paginated, but the command doesn't support boto3 pagination
+        # Up to 10000 log events can be returned from a single call to get_log_events()
+        events = logs.get_log_events(
+            logGroupName=log_group_name,
+            logStreamName=log_stream_name,
+        )["events"]
+
+        log_events = ""
+        for event in events:
+            log_events += event["message"] + "\n"
+
+        return result, log_events, ""
 
