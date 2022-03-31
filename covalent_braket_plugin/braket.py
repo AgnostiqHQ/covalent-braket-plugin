@@ -52,7 +52,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "poll_freq": 30,
 }
 
-executor_plugin_name = "BraketExecutor"
+EXECUTOR_PLUGIN_NAME = "BraketExecutor"
 
 class BraketExecutor(BaseExecutor):
     """AWS Braket Hybrid Jobs executor plugin class."""
