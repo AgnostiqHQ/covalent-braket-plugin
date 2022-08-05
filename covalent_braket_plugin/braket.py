@@ -231,7 +231,7 @@ class BraketExecutor(BaseExecutor):
         kwargs: Dict,
     ) -> str:
         """Package a task using Docker and upload it to AWS ECR.
-
+        
         Args:
             function: A callable Python function.
             image_tag: Tag used to identify the Docker image.
