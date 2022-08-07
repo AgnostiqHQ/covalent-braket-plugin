@@ -212,7 +212,7 @@ class BraketExecutor(BaseExecutor):
             docker_working_dir: Name of the working directory in the container.
 
         Returns:
-            dockerfile: String object containing a Dockerfile.
+            String object containing a Dockerfile.
         """
 
         app_log.debug("AWS BRAKET EXECUTOR: INSIDE FORMAT DOCKERFILE METHOD")
@@ -273,11 +273,13 @@ class BraketExecutor(BaseExecutor):
             # Write Dockerfile to file
             app_log.debug("Write Dockerfile to file")
             dockerfile = self._format_dockerfile(exec_script_file.name, docker_working_dir)
+            app_log.debug(dockerfile)
             dockerfile_file.write(dockerfile)
             dockerfile_file.flush()
 
             local_dockerfile = os.path.join(task_results_dir, f"Dockerfile_{image_tag}")
             shutil.copyfile(dockerfile_file.name, local_dockerfile)
+            app_log.debug(local_dockerfile)
 
             # Build the Docker image
             app_log.debug("Build the Docker image")
@@ -289,10 +291,7 @@ class BraketExecutor(BaseExecutor):
                 platform="linux/amd64",
             )
             app_log.debug("AWS BRAKET EXECUTOR: DOCKER BUILD SUCCESS")
-
-        # ECR config
-        app_log.debug("Boto3 client")
-        ecr = boto3.client("ecr")
+            app_log.debug(image)
 
         ecr_username = "AWS"
         ecr_password, ecr_registry, ecr_repo_uri = self._get_ecr_info(image_tag)
@@ -306,8 +305,6 @@ class BraketExecutor(BaseExecutor):
         # Tag the image
         image.tag(ecr_repo_uri, tag=image_tag)
         app_log.debug("AWS BRAKET EXECUTOR: IMAGE TAG SUCCESS")
-        app_log.debug(ecr_repo_uri)
-        app_log.debug(image_tag)
         # Push to ECR
         try:
             response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
