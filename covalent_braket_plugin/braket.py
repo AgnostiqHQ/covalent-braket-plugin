@@ -27,10 +27,13 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Callable
+from pprint import pprint
 
 import boto3
 import cloudpickle as pickle
 import docker
+import json
+
 
 from covalent._shared_files.logger import app_log
 from covalent._shared_files.util_classes import DispatchInfo
@@ -54,6 +57,19 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
 }
 
 executor_plugin_name = "BraketExecutor"
+
+
+class BraketExecutorDockerException(Exception):
+    def __init__(self, status):
+        self.message = (
+            "There was an error uploading the Docker image to ECR.\n"
+            + "This may be resolved by removing ~/.docker/config.json and trying your dispatch again.\n"
+            + "For more information, see\n"
+            + "https://stackoverflow.com/a/55103262/5513030\n"
+            + "https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html\n"
+            + status
+        )
+        super().__init__(self.message)
 
 
 class BraketExecutor(BaseExecutor):
@@ -166,6 +182,9 @@ class BraketExecutor(BaseExecutor):
 
     def _get_ecr_info(self, image_tag: str) -> tuple:
         """Retrieve ecr details."""
+        app_log.debug("AWS BRAKET EXECUTOR: INSIDE ECR INFO METHOD")
+        app_log.debug("get_ecr_info")
+        app_log.debug(f"profile is {self.profile}")
         ecr = boto3.Session(profile_name=self.profile).client("ecr")
         ecr_credentials = ecr.get_authorization_token()["authorizationData"][0]
         ecr_password = (
@@ -231,7 +250,7 @@ class BraketExecutor(BaseExecutor):
         kwargs: Dict,
     ) -> str:
         """Package a task using Docker and upload it to AWS ECR.
-        
+
         Args:
             function: A callable Python function.
             image_tag: Tag used to identify the Docker image.
@@ -287,11 +306,13 @@ class BraketExecutor(BaseExecutor):
             image, build_log = docker_client.images.build(
                 path=self.cache_dir,
                 dockerfile=dockerfile_file.name,
-                tag=image_tag,
                 platform="linux/amd64",
             )
             app_log.debug("AWS BRAKET EXECUTOR: DOCKER BUILD SUCCESS")
-            app_log.debug(image)
+            app_log.debug(f"image ID {image.id}")
+            app_log.debug(f"image tags {image.tags}")
+            for line in build_log:
+                app_log.debug(pprint(line))
 
         ecr_username = "AWS"
         ecr_password, ecr_registry, ecr_repo_uri = self._get_ecr_info(image_tag)
@@ -299,19 +320,34 @@ class BraketExecutor(BaseExecutor):
         app_log.debug(ecr_password)
         app_log.debug(ecr_registry)
         app_log.debug(ecr_repo_uri)
-        docker_client.login(username=ecr_username, password=ecr_password, registry=ecr_registry)
-        app_log.debug("AWS BRAKET EXECUTOR: DOCKER CLIENT LOGIN SUCCESS")
+        login_status = docker_client.login(
+            username=ecr_username, password=ecr_password, registry=ecr_registry
+        )
+        if not login_status["IdentityToken"] and login_status["Status"] == "Login Succeeded":
+            app_log.debug("AWS BRAKET EXECUTOR: DOCKER CLIENT LOGIN SUCCESS")
+        else:
+            raise BraketExecutorDockerException(login_status["Status"])
 
         # Tag the image
         image.tag(ecr_repo_uri, tag=image_tag)
         app_log.debug("AWS BRAKET EXECUTOR: IMAGE TAG SUCCESS")
         # Push to ECR
-        try:
-            response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
+        response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
+        statuses = []
+        for status in response.split("\r"):
+            try:
+                status = json.loads(status)
+            except:
+                break
+            if "error" in status.keys():
+                statuses.append("error")
+                raise BraketExecutorDockerException(status["error"])
+            elif "status" in status.keys():
+                statuses.append(status["status"])
+            else:
+                statuses.append(list(status.keys())[0])
+        if "error" not in statuses:
             app_log.debug(f"AWS BRAKET EXECUTOR: DOCKER IMAGE PUSH SUCCESS {response}")
-        except Exception as e:
-            app_log.debug(f"{e}")
-
         return ecr_repo_uri
 
     def get_status(self, braket, job_arn: str) -> str:
