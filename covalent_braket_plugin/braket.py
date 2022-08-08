@@ -296,10 +296,6 @@ class BraketExecutor(BaseExecutor):
             dockerfile_file.write(dockerfile)
             dockerfile_file.flush()
 
-            local_dockerfile = os.path.join(task_results_dir, f"Dockerfile_{image_tag}")
-            shutil.copyfile(dockerfile_file.name, local_dockerfile)
-            app_log.debug(local_dockerfile)
-
             # Build the Docker image
             app_log.debug("Build the Docker image")
             docker_client = docker.from_env()
@@ -310,16 +306,12 @@ class BraketExecutor(BaseExecutor):
             )
             app_log.debug("AWS BRAKET EXECUTOR: DOCKER BUILD SUCCESS")
             app_log.debug(f"image ID {image.id}")
-            app_log.debug(f"image tags {image.tags}")
             for line in build_log:
                 app_log.debug(pprint(line))
 
         ecr_username = "AWS"
         ecr_password, ecr_registry, ecr_repo_uri = self._get_ecr_info(image_tag)
         app_log.debug("AWS BRAKET EXECUTOR: ECR INFO RETRIEVAL SUCCESS")
-        app_log.debug(ecr_password)
-        app_log.debug(ecr_registry)
-        app_log.debug(ecr_repo_uri)
         login_status = docker_client.login(
             username=ecr_username, password=ecr_password, registry=ecr_registry
         )
