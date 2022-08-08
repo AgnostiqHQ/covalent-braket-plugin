@@ -388,10 +388,7 @@ class BraketExecutor(BaseExecutor):
             raise Exception(failure_reason)
 
     def _query_result(
-        self,
-        result_filename: str,
-        task_results_dir: str,
-        job_arn: str,
+        self, result_filename: str, task_results_dir: str, job_arn: str, image_tag: str
     ) -> Tuple[Any, str, str]:
         """Query and retrieve a completed job's result.
 
@@ -419,7 +416,7 @@ class BraketExecutor(BaseExecutor):
         logs = boto3.client("logs")
 
         log_group_name = "/aws/braket/jobs"
-        log_stream_prefix = "covalent-{image_tag}"
+        log_stream_prefix = f"covalent-{image_tag}"
         log_stream_name = logs.describe_log_streams(
             logGroupName=log_group_name, logStreamNamePrefix=log_stream_prefix
         )["logStreams"][0]["logStreamName"]

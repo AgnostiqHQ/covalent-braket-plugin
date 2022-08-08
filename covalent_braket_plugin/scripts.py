@@ -49,10 +49,10 @@ RUN apt-get update && apt-get install -y \\
   gcc \\
   && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \\
-  amazon-braket-pennylane-plugin \\
+  amazon-braket-pennylane-plugin==1.6.9 \\
   boto3==1.20.48 \\
   cloudpickle==2.0.0 \\
-  pennylane==0.16.0 \\
+  pennylane==0.24.0 \\
   sagemaker-training
 RUN pip install covalent --pre
 
@@ -60,6 +60,4 @@ WORKDIR {docker_working_dir}
 
 COPY {func_basename} {docker_working_dir}
 ENV SAGEMAKER_PROGRAM {func_basename}
-ENTRYPOINT [ "python" ]
-CMD ["{docker_working_dir}/{func_basename}"]
 """
