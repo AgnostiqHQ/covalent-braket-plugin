@@ -30,7 +30,7 @@ pip install awscli
 aws configure
 ```
 
-Set the environment variable `BRAKET_JOB_IMAGES` to some name for where your images will be stored, for example my-braket-images. Then create the repository.
+Set the environment variable `BRAKET_JOB_IMAGES` to some name for where your images will be stored, for example `my-braket-images`. Then create the repository.
 ```
 aws ecr create-repository --repository-name $BRAKET_JOB_IMAGES
 ```
@@ -108,7 +108,7 @@ For more information about how to get started with Covalent, check out the proje
 
 ### Note :bulb:
 
-If the script fails quickly, check covalent logs. If there is an ERROR in the logs, it should include helpful output on what you need to do to get it to run, for example
+If the script fails quickly, check `covalent logs`. If there is an ERROR in the logs, it should include helpful output on what you need to do to get it to run, for example
 
 ```
 ERROR - Exception occurred when running task 3: There was an error uploading the Docker image to ECR.
