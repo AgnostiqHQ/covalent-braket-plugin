@@ -2,10 +2,7 @@
 
 <div align="center">
 
-![covalent logo](https://github.com/AgnostiqHQ/covalent/blob/master/doc/source/_static/dark.png#gh-dark-mode-only)
-![covalent logo](https://github.com/AgnostiqHQ/covalent/blob/master/doc/source/_static/light.png#gh-light-mode-only)
-
-&nbsp;
+<img src="https://raw.githubusercontent.com/AgnostiqHQ/covalent-braket-plugin/main/assets/aws_braket_readme_banner.jpg" width=150%>
 
 </div>
 
@@ -118,7 +115,6 @@ https://stackoverflow.com/a/55103262/5513030
 https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html
 denied: Your authorization token has expired. Reauthenticate and try again.
 ```
-
 
 ## Release Notes
 
