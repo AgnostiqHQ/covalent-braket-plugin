@@ -49,7 +49,7 @@ setup_info = {
     "include_package_data": True,
     "install_requires": required,
     "classifiers": [
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Environment :: Console",
         "Environment :: Plugins",
         "Intended Audience :: Developers",

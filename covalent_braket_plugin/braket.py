@@ -45,8 +45,9 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ["HOME"], ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
-    "s3_bucket_name": "amazon-braket-covalent-job-resources",
-    "ecr_repo_name": "covalent-braket-job-images",
+    "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
+    or "amazon-braket-covalent-job-resources",
+    "ecr_repo_name": os.environ.get("BRAKET_JOB_IMAGES") or "covalent-braket-job-images",
     "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
     "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     "classical_device": "ml.m5.large",
@@ -60,10 +61,11 @@ executor_plugin_name = "BraketExecutor"
 
 
 class BraketExecutorDockerException(Exception):
-    def __init__(self, status):
+    def __init__(self, status, repo):
         self.message = (
             "There was an error uploading the Docker image to ECR.\n"
-            + "This may be resolved by removing ~/.docker/config.json and trying your dispatch again.\n"
+            + f"Check that the repo {repo} exists.\n"
+            + "This may also be resolved by removing ~/.docker/config.json and trying your dispatch again.\n"
             + "For more information, see\n"
             + "https://stackoverflow.com/a/55103262/5513030\n"
             + "https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html\n"
@@ -262,6 +264,8 @@ class BraketExecutor(BaseExecutor):
         Returns:
             ecr_repo_uri: URI of the repository where the image was uploaded.
         """
+        app_log.debug("_package_and_upload")
+        app_log.debug(self.s3_bucket_name)
 
         func_filename = f"func-{image_tag}.pkl"
         docker_working_dir = "/opt/ml/code"
@@ -318,7 +322,7 @@ class BraketExecutor(BaseExecutor):
         if not login_status["IdentityToken"] and login_status["Status"] == "Login Succeeded":
             app_log.debug("AWS BRAKET EXECUTOR: DOCKER CLIENT LOGIN SUCCESS")
         else:
-            raise BraketExecutorDockerException(login_status["Status"])
+            raise BraketExecutorDockerException(login_status["Status"], self.ecr_repo_name)
 
         # Tag the image
         image.tag(ecr_repo_uri, tag=image_tag)
@@ -333,7 +337,7 @@ class BraketExecutor(BaseExecutor):
                 break
             if "error" in status.keys():
                 statuses.append("error")
-                raise BraketExecutorDockerException(status["error"])
+                raise BraketExecutorDockerException(status["error"], self.ecr_repo_name)
             elif "status" in status.keys():
                 statuses.append(status["status"])
             else:
