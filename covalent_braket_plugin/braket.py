@@ -21,24 +21,23 @@
 """AWS Braket Hybrid Jobs executor plugin for the Covalent dispatcher."""
 
 import base64
+import json
 import os
 import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Callable
 from pprint import pprint
+from typing import Any, Callable, Dict, List, Tuple
 
 import boto3
 import cloudpickle as pickle
 import docker
-import json
-
-
 from covalent._shared_files.logger import app_log
 from covalent._shared_files.util_classes import DispatchInfo
 from covalent._workflow.transport import TransportableObject
 from covalent.executor import BaseExecutor
+
 from .scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 
 _EXECUTOR_PLUGIN_DEFAULTS = {

@@ -1,20 +1,23 @@
-import covalent as ct
 from typing import List
+
+import covalent as ct
+
 
 @ct.electron(executor="braket")
 def hybrid_task(size: int, shots: int, angles: List):
-    import pennylane as qml
-    import random
     import os
+    import random
+
+    import pennylane as qml
 
     device_arn = os.environ["AMZN_BRAKET_DEVICE_ARN"]
     s3_bucket = os.environ["AMZN_BRAKET_OUT_S3_BUCKET"]
     s3_task_dir = os.environ["AMZN_BRAKET_TASK_RESULTS_S3_URI"].split(s3_bucket)[1]
 
     device = qml.device(
-        "braket.aws.qubit", 
-        device_arn=device_arn, 
-        s3_destination_folder=(s3_bucket, s3_task_dir), 
+        "braket.aws.qubit",
+        device_arn=device_arn,
+        s3_destination_folder=(s3_bucket, s3_task_dir),
         wires=size,
         shots=shots,
         parallel=True,
