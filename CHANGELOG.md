@@ -7,9 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+
+## [0.3.0] - 2022-08-16
+
 ### Added
 
 - Updated required `covalent` version
+
+## [0.2.0] - 2022-08-13
+
+### Added
+
+- Workflows needed for release
+
+## [0.1.2] - 2022-08-10
+
+### Fixed
+
+- Dynamically set bucket name and repo name
+
+### Docs
+
+- Updated README with more getting started details
 
 ## [0.1.1] - 2022-08-08
 
