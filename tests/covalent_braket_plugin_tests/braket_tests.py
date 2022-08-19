@@ -28,94 +28,67 @@ from unittest.mock import MagicMock
 import cloudpickle
 import pytest
 
-from 
-from covalent_awsbatch_plugin.scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
+from covalent_braket_plugin.braket import BraketExecutor
+from covalent_braket_plugin.scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 
-
-
-
-
-
-
-
-
-
-
-
-
+MOCK_CREDENTIALS = "mock_credentials"
+MOCK_PROFILE = "mock_profile"
+MOCK_S3_BUCKET_NAME = "mock_s3_bucket_name"
+MOCK_ECR_REPO_NAME = "mock_ecr_repo_name"
+MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME = "mock_role_name"
+MOCK_QUANTUM_DEVICE = "mock_device"
+MOCK_CLASSICAL_DEVICE = "mock_device"
+MOCK_STORAGE = 0
+MOCK_TIME_LIMIT = 0
+MOCK_POLL_FREQ = 0
 
 
 @pytest.fixture
-def batch_executor(mocker):
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.get_config")
-    return AWSBatchExecutor(
-        credentials="mock_credentials",
-        profile="mock_profile",
-        s3_bucket_name="mock_s3_bucket_name",
-        ecr_repo_name="mock_ecr_repo_name",
-        batch_queue="mock_batch_queue",
-        batch_job_definition_name="mock_batch_job_definition_name",
-        batch_execution_role_name="mock_batch_execution_role_name",
-        batch_job_role_name="mock_batch_job_role_name",
-        batch_job_log_group_name="mock_batch_job_log_group_name",
-        vcpu=0,
-        memory=0.0,
-        num_gpus=0,
-        retry_attempts=0,
-        time_limit=0,
-        poll_freq=0.1,
-        cache_dir="mock",
+def braket_executor():
+    return BraketExecutor(
+        credentials=MOCK_CREDENTIALS,
+        profile=MOCK_PROFILE,
+        s3_bucket_name=MOCK_S3_BUCKET_NAME,
+        ecr_repo_name=MOCK_ECR_REPO_NAME,
+        braket_job_execution_role_name=MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME,
+        quantum_device=MOCK_QUANTUM_DEVICE,
+        classical_device=MOCK_CLASSICAL_DEVICE,
+        storage=MOCK_STORAGE,
+        time_limit=MOCK_TIME_LIMIT,
+        poll_freq=MOCK_POLL_FREQ,
     )
 
 
-def test_executor_init_default_values(mocker):
+def test_executor_init_default_values(braket_executor):
     """Test that the init values of the executor are set properly."""
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.get_config", return_value="mock")
-    abe = AWSBatchExecutor()
-    assert abe.credentials == "mock"
-    assert abe.profile == "mock"
-    assert abe.s3_bucket_name == "mock"
-    assert abe.ecr_repo_name == "mock"
-    assert abe.batch_queue == "mock"
-    assert abe.batch_job_definition_name == "mock"
-    assert abe.batch_execution_role_name == "mock"
-    assert abe.batch_job_role_name == "mock"
-    assert abe.batch_job_log_group_name == "mock"
-    assert abe.vcpu == "mock"
-    assert abe.memory == "mock"
-    assert abe.num_gpus == "mock"
-    assert abe.retry_attempts == "mock"
-    assert abe.time_limit == "mock"
-    assert abe.poll_freq == "mock"
-    assert abe.cache_dir == "mock"
+    be = braket_executor()
+    assert be.credentials == MOCK_CREDENTIALS
+    assert be.profile == MOCK_PROFILE
+    assert be.s3_bucket_name == MOCK_S3_BUCKET_NAME
+    assert be.ecr_repo_name == MOCK_ECR_REPO_NAME
+    assert be.braket_job_execution_role_name == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
+    assert be.quantum_device == MOCK_QUANTUM_DEVICE
+    assert be.classical_device == MOCK_CLASSICAL_DEVICE
+    assert be.storage == MOCK_STORAGE
+    assert be.time_limit == MOCK_TIME_LIMIT
+    assert be.poll_freq == MOCK_POLL_FREQ
 
 
-def test_get_aws_account(batch_executor, mocker):
-    """Test the method to retrieve the aws account."""
-    mm = MagicMock()
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    batch_executor._get_aws_account()
-    mm.client().get_caller_identity.called_once_with()
-    mm.client().get_caller_identity.get.called_once_with("Account")
-
-
-def test_execute(batch_executor, mocker):
+def test_execute(braket_executor, mocker):
     """Test the execute method."""
 
     def mock_func(x):
         return x
 
     mm = MagicMock()
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
+    mocker.patch("covalent_braket_plugin.braket.boto3.Session", return_value=mm)
     package_and_upload_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._package_and_upload"
+        "covalent_braket_plugin.braket.BraketExecutor._package_and_upload"
     )
-    poll_batch_job_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._poll_batch_job"
+    poll_braket_job_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._poll_braket_job"
     )
-    query_result_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._query_result"
-    )
+    query_result_mock = mocker.patch("covalent_braket_plugin.braket.BraketExecutor._query_result")
     batch_executor.execute(
         function=mock_func,
         args=[],
@@ -132,28 +105,28 @@ def test_execute(batch_executor, mocker):
         [],
         {"x": 1},
     )
-    poll_batch_job_mock.assert_called_once()
+    poll_braket_job_mock.assert_called_once()
     query_result_mock.assert_called_once()
     mm.client().register_job_definition.assert_called_once()
     mm.client().submit_job.assert_called_once()
 
 
-def test_format_exec_script(batch_executor):
+def test_format_exec_script(braket_executor):
     """Test method that constructs the executable tasks-execution Python script."""
     kwargs = {
         "func_filename": "mock_function_filename",
         "result_filename": "mock_result_filename",
         "docker_working_dir": "mock_docker_working_dir",
     }
-    exec_script = batch_executor._format_exec_script(**kwargs)
+    exec_script = braket_executor._format_exec_script(**kwargs)
     assert exec_script == PYTHON_EXEC_SCRIPT.format(
-        s3_bucket_name=batch_executor.s3_bucket_name, **kwargs
+        s3_bucket_name=braket_executor.s3_bucket_name, **kwargs
     )
 
 
-def test_format_dockerfile(batch_executor):
+def test_format_dockerfile(braket_executor):
     """Test method that constructs the dockerfile."""
-    docker_script = batch_executor._format_dockerfile(
+    docker_script = braket_executor._format_dockerfile(
         exec_script_filename="root/mock_exec_script_filename",
         docker_working_dir="mock_docker_working_dir",
     )
@@ -162,61 +135,32 @@ def test_format_dockerfile(batch_executor):
     )
 
 
-def test_upload_file_to_s3(batch_executor, mocker):
-    """Test method to upload file to s3."""
-    mm = MagicMock()
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    batch_executor._upload_file_to_s3(
-        "mock_s3_bucket_name", "mock_temp_function_filename", "mock_s3_function_filename"
-    )
-    mm.client().upload_file.assert_called_once_with(
-        "mock_temp_function_filename", "mock_s3_bucket_name", "mock_s3_function_filename"
-    )
-    # print(mm.mock_calls)
+def test_package_and_upload(braket_executor, mocker):
+    class MockClient:
+        def upload_file(self, filename, bucket_name, func_filename):
+            return filename
 
-
-def test_ecr_info(batch_executor, mocker):
-    """Test method to retrieve ecr related info."""
-    mm = MagicMock()
-    mm.client().get_authorization_token.return_value = {
-        "authorizationData": [
-            {
-                "authorizationToken": b64encode(b"fake_token"),
-                "proxyEndpoint": "proxy_endpoint",
-            }
-        ]
-    }
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    assert batch_executor._get_ecr_info("mock_image_tag") == (
-        "fake_token",
-        "proxy_endpoint",
-        "proxy_endpoint/mock_ecr_repo_name:mock_image_tag",
-    )
-    mm.client().get_authorization_token.assert_called_once_with()
-
-
-def test_package_and_upload(batch_executor, mocker):
     """Test the package and upload method."""
     upload_file_to_s3_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._upload_file_to_s3"
+        "covalent_braket_plugin.braket.boto3.client", return_value=MockClient()
     )
     format_exec_script_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._format_exec_script", return_value=""
+        "covalent_braket_plugin.braket.BraketExecutor._format_exec_script", return_value=""
     )
     format_dockerfile_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._format_dockerfile", return_value=""
+        "covalent_braket_plugin.braket.BraketExecutor._format_dockerfile", return_value=""
     )
     get_ecr_info_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._get_ecr_info",
+        "covalent_braket_plugin.braket.BraketExecutor._get_ecr_info",
         return_value=("", "", ""),
     )
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.shutil.copyfile")
+    mocker.patch("covalent_braket_plugin.braket.shutil.copyfile")
     mm = MagicMock()
     tag_mock = MagicMock()
     mm.images.build.return_value = tag_mock, "logs"
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.docker.from_env", return_value=mm)
+    mocker.patch("covalent_braket_plugin.braket.docker.from_env", return_value=mm)
 
-    batch_executor._package_and_upload(
+    braket_executor._package_and_upload(
         "mock_transportable_object",
         "mock_image_tag",
         "mock_task_results_dir",
@@ -230,82 +174,51 @@ def test_package_and_upload(batch_executor, mocker):
     get_ecr_info_mock.assert_called_once()
 
 
-def test_get_status(batch_executor):
+def test_get_status(braket_executor):
     """Test the get status method."""
 
-    class MockBatch:
-        def describe_jobs(self, jobs: List) -> Dict:
-            if jobs[0] == "1":
-                return {"jobs": [{"status": "SUCCESS", "container": {"exitCode": 1}}]}
-            elif jobs[0] == "2":
-                return {"jobs": [{"status": "RUNNING"}]}
+    class MockBraket:
+        def get_job(self, jobArn: str) -> Dict:
+            if jobArn == "1":
+                return {"status": "SUCCESS"}
+            elif jobArn == "2":
+                return {"status": "RUNNING"}
 
-    status, exit_code = batch_executor.get_status(batch=MockBatch(), job_id="1")
+    status = braket_executor.get_status(braket=MockBraket(), job_arn="1")
     assert status == "SUCCESS"
-    assert exit_code == 1
 
-    status, exit_code = batch_executor.get_status(batch=MockBatch(), job_id="2")
+    status = braket_executor.get_status(braket=MockBraket(), job_id="2")
     assert status == "RUNNING"
     assert exit_code == -1
 
 
-def test_poll_batch_job(batch_executor, mocker):
+def test_poll_braket_job(braket_executor, mocker):
     """Test the method to poll the batch job."""
     get_status_mock = mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor.get_status",
+        "covalent_braket_plugin.braket.BraketExecutor.get_status",
         side_effect=[("RUNNING", 1), ("SUCCEEDED", 0), ("RUNNING", 1), ("FAILED", 2)],
     )
 
-    batch_executor._poll_batch_job(batch=MagicMock(), job_id="1")
+    braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
     with pytest.raises(Exception):
-        batch_executor._poll_batch_job(batch=MagicMock(), job_id="1")
+        braket_executor._poll_braket_job(braket=MagicMock(), job_id="1")
     get_status_mock.assert_called()
 
 
-def test_download_file_from_s3(batch_executor, mocker):
-    """Test method to download file from s3 into local file."""
-    mm = MagicMock()
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    batch_executor._download_file_from_s3(
-        "mock_s3_bucket_name", "mock_result_filename", "mock_local_result_filename"
-    )
-    mm.client().download_file.assert_called_once_with(
-        "mock_s3_bucket_name", "mock_result_filename", "mock_local_result_filename"
-    )
-
-
-def test_get_batch_logstream(batch_executor, mocker):
-    """Test the method to get the batch logstream."""
-    mm = MagicMock()
-    mm.client().describe_jobs.return_value = {
-        "jobs": [{"container": {"logStreamName": "mockLogStream"}}]
-    }
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    assert batch_executor._get_batch_logstream("1") == "mockLogStream"
-    mm.client().describe_jobs.assert_called_once_with(jobs=["1"])
-
-
-def test_get_log_events(batch_executor, mocker):
-    """Test the method to get log events."""
-    mm = MagicMock()
-    mm.client().get_log_events.return_value = {
-        "events": [{"message": "hello"}, {"message": "world"}]
-    }
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    assert batch_executor._get_log_events("mock_group", "mock_stream") == "hello\nworld\n"
-    mm.client().get_log_events.assert_called_once_with(
-        logGroupName="mock_group", logStreamName="mock_stream"
-    )
-
-
-def test_query_results(batch_executor, mocker):
+def test_query_result(braket_executor, mocker):
     """Test the method to query the results."""
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._download_file_from_s3")
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._get_batch_logstream")
-    mocker.patch(
-        "covalent_awsbatch_plugin.awsbatch.AWSBatchExecutor._get_log_events",
-        return_value="mock_logs",
-    )
+
+    class MockClient:
+        def download_file(self, filename, bucket_name, func_filename):
+            return filename
+
+        def describe_log_streams(logGroupName, logStreamNamePrefix):
+            return {"logStreams": [{"logStreamName": f"{logStreamNamePrefix}-mock-name"}]}
+
+        def get_log_events(logGroupName, logStreamNamePrefix):
+            return {"events": "mock_logs"}
+
+    mocker.patch("covalent_braket_plugin.boto3.client", return_value=MockClient())
     task_results_dir, result_filename = "/tmp", "mock_result_filename.pkl"
     local_result_filename = os.path.join(task_results_dir, result_filename)
     with open(local_result_filename, "wb") as f:
@@ -315,11 +228,3 @@ def test_query_results(batch_executor, mocker):
         "mock_logs",
         "",
     )
-
-
-def test_cancel(batch_executor, mocker):
-    """Test job cancellation method."""
-    mm = MagicMock()
-    mocker.patch("covalent_awsbatch_plugin.awsbatch.boto3.Session", return_value=mm)
-    batch_executor.cancel(job_id="1", reason="unknown")
-    mm.client().terminate_job.assert_called_once_with(jobId="1", reason="unknown")
