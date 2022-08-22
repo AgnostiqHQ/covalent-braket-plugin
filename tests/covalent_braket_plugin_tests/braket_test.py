@@ -61,17 +61,16 @@ def braket_executor():
 
 def test_executor_init_default_values(braket_executor):
     """Test that the init values of the executor are set properly."""
-    be = braket_executor()
-    assert be.credentials == MOCK_CREDENTIALS
-    assert be.profile == MOCK_PROFILE
-    assert be.s3_bucket_name == MOCK_S3_BUCKET_NAME
-    assert be.ecr_repo_name == MOCK_ECR_REPO_NAME
-    assert be.braket_job_execution_role_name == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
-    assert be.quantum_device == MOCK_QUANTUM_DEVICE
-    assert be.classical_device == MOCK_CLASSICAL_DEVICE
-    assert be.storage == MOCK_STORAGE
-    assert be.time_limit == MOCK_TIME_LIMIT
-    assert be.poll_freq == MOCK_POLL_FREQ
+    assert braket_executor.credentials == MOCK_CREDENTIALS
+    assert braket_executor.profile == MOCK_PROFILE
+    assert braket_executor.s3_bucket_name == MOCK_S3_BUCKET_NAME
+    assert braket_executor.ecr_repo_name == MOCK_ECR_REPO_NAME
+    assert braket_executor.braket_job_execution_role_name == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
+    assert braket_executor.quantum_device == MOCK_QUANTUM_DEVICE
+    assert braket_executor.classical_device == MOCK_CLASSICAL_DEVICE
+    assert braket_executor.storage == MOCK_STORAGE
+    assert braket_executor.time_limit == MOCK_TIME_LIMIT
+    assert braket_executor.poll_freq == MOCK_POLL_FREQ
 
 
 def test_execute(braket_executor, mocker):
@@ -89,7 +88,7 @@ def test_execute(braket_executor, mocker):
         "covalent_braket_plugin.braket.BraketExecutor._poll_braket_job"
     )
     query_result_mock = mocker.patch("covalent_braket_plugin.braket.BraketExecutor._query_result")
-    batch_executor.execute(
+    braket_executor.execute(
         function=mock_func,
         args=[],
         kwargs={"x": 1},
@@ -107,8 +106,6 @@ def test_execute(braket_executor, mocker):
     )
     poll_braket_job_mock.assert_called_once()
     query_result_mock.assert_called_once()
-    mm.client().register_job_definition.assert_called_once()
-    mm.client().submit_job.assert_called_once()
 
 
 def test_format_exec_script(braket_executor):
@@ -158,6 +155,7 @@ def test_package_and_upload(braket_executor, mocker):
     mm = MagicMock()
     tag_mock = MagicMock()
     mm.images.build.return_value = tag_mock, "logs"
+    mm.login.return_value = {"IdentityToken": None, "Status": "Login Succeeded"}
     mocker.patch("covalent_braket_plugin.braket.docker.from_env", return_value=mm)
 
     braket_executor._package_and_upload(
@@ -187,21 +185,24 @@ def test_get_status(braket_executor):
     status = braket_executor.get_status(braket=MockBraket(), job_arn="1")
     assert status == "SUCCESS"
 
-    status = braket_executor.get_status(braket=MockBraket(), job_id="2")
+    status = braket_executor.get_status(braket=MockBraket(), job_arn="2")
     assert status == "RUNNING"
-    assert exit_code == -1
 
 
 def test_poll_braket_job(braket_executor, mocker):
     """Test the method to poll the batch job."""
     get_status_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor.get_status",
-        side_effect=[("RUNNING", 1), ("SUCCEEDED", 0), ("RUNNING", 1), ("FAILED", 2)],
+        side_effect=[
+            "RUNNING",
+            "SUCCEEDED",
+            "RUNNING",
+            "FAILED",
+        ],
     )
 
-    braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
     with pytest.raises(Exception):
-        braket_executor._poll_braket_job(braket=MagicMock(), job_id="1")
+        braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
     get_status_mock.assert_called()
 
 
@@ -212,19 +213,22 @@ def test_query_result(braket_executor, mocker):
         def download_file(self, filename, bucket_name, func_filename):
             return filename
 
-        def describe_log_streams(logGroupName, logStreamNamePrefix):
+        def describe_log_streams(self, logGroupName, logStreamNamePrefix):
+            print("******DESCRIBE LOG STREAMS********")
+            print(logGroupName)
+            print(logStreamNamePrefix)
             return {"logStreams": [{"logStreamName": f"{logStreamNamePrefix}-mock-name"}]}
 
-        def get_log_events(logGroupName, logStreamNamePrefix):
-            return {"events": "mock_logs"}
+        def get_log_events(self, logGroupName, logStreamName):
+            return {"events": [{"message": "mock_logs"}]}
 
-    mocker.patch("covalent_braket_plugin.boto3.client", return_value=MockClient())
+    mocker.patch("covalent_braket_plugin.braket.boto3.client", return_value=MockClient())
     task_results_dir, result_filename = "/tmp", "mock_result_filename.pkl"
     local_result_filename = os.path.join(task_results_dir, result_filename)
     with open(local_result_filename, "wb") as f:
         cloudpickle.dump("hello world", f)
-    assert batch_executor._query_result(result_filename, task_results_dir, "1") == (
+    assert braket_executor._query_result(result_filename, task_results_dir, "1", None) == (
         "hello world",
-        "mock_logs",
+        "mock_logs\n",
         "",
     )
