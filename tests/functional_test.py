@@ -1,5 +1,6 @@
 from typing import List
 from covalent._results_manager import Result
+import covalent as ct
 
 
 def test_executor_functional():
