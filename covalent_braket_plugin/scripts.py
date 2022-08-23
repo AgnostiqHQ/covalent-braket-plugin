@@ -54,7 +54,7 @@ RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \\
   cloudpickle==2.0.0 \\
   pennylane==0.24.0 \\
   sagemaker-training
-RUN pip install covalent --pre
+RUN pip install covalent
 
 WORKDIR {docker_working_dir}
 
