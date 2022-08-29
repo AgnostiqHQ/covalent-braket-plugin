@@ -71,7 +71,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --no-cache-dir -r requirements.txt
-          #pip install --no-cache-dir -r tests/requirements.txt
+          pip install --no-cache-dir -r tests/requirements.txt
       
       - name: Install Covalent
         run: pip install covalent --pre
@@ -86,15 +86,30 @@ jobs:
           tar xzf covalent-braket-plugin-${VERSION}.tar.gz
           diff -r covalent-braket-plugin-${VERSION}/covalent_braket_plugin/ ../covalent_braket_plugin/
           rm -rf covalent-braket-plugin-${VERSION}/
-          cd ..
 
       - name: Install Braket plugin
         run: |
           VERSION="$(cat ./VERSION)"
           pip install ./dist/covalent-braket-plugin-${VERSION}.tar.gz
 
-#      - name: Run tests
-#        run: PYTHONPATH=$PWD/tests pytest -vv tests/
+      - name: Test import via entrypoint
+        run: from covalent.executor import BraketExecutor
+        shell: python
+
+      - name: Run tests
+        run: PYTHONPATH=$PWD/tests pytest -vv tests/covalent_braket_plugin_tests --cov=covalent_braket_plugin
+
+      - name: Generate coverage report
+        run: coverage xml -o coverage.xml
+      
+      - name: Upload report to Codecov
+        if: >
+          matrix.os == 'ubuntu-latest'
+          && matrix.container == 'python:3.8-buster'
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          name: "Plugin Unit Tests"
 
       - name: Get latest release
         uses: actions-ecosystem/action-get-latest-tag@v1
