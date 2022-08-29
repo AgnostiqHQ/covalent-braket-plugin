@@ -4,6 +4,12 @@
 
 <img src="https://raw.githubusercontent.com/AgnostiqHQ/covalent-braket-plugin/main/assets/aws_braket_readme_banner.jpg" width=150%>
 
+[![covalent](https://img.shields.io/badge/covalent-0.177.0-purple)](https://github.com/AgnostiqHQ/covalent)
+[![python](https://img.shields.io/pypi/pyversions/covalent-braket-plugin)](https://github.com/AgnostiqHQ/covalent-braket-plugin)
+[![tests](https://github.com/AgnostiqHQ/covalent-braket-plugin/actions/workflows/tests.yml/badge.svg)](https://github.com/AgnostiqHQ/covalent-braket-plugin/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/AgnostiqHQ/covalent-braket-plugin/branch/main/graph/badge.svg?token=QNTR18SR5H)](https://codecov.io/gh/AgnostiqHQ/covalent-braket-plugin)
+[![agpl](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
+
 </div>
 
 ## Covalent Braket Hybrid Jobs Plugin
@@ -12,15 +18,13 @@ Covalent is a Pythonic workflow tool used to execute tasks on advanced computing
 
 In order for workflows to be deployable, users must have AWS credentials allowing access to Braket, S3, ECR, and some other services. Users will need additional permissions to provision or manage cloud infrastructure used by this plugin. These permissions must be defined in an IAM Role with the name CovalentBraketJobsExecutionRole. [An example of the permissions that must be attached to the role can be found here](infra/iam/CovalentBraketJobsExecutionPolicy.json). [AWS documentation has more information about managing Braket access](https://docs.aws.amazon.com/braket/latest/developerguide/braket-manage-access.html).
 
-To use this plugin with Covalent, clone this repository and install it using `pip`:
+To use this plugin with Covalent, install it with `pip`:
 
 ```
-git clone git@github.com:AgnostiqHQ/covalent-braket-plugin.git
-cd covalent-braket-plugin
-pip install .
+pip install covalent-braket-plugin
 ```
 
-You need to have the AWS cli installed and configured. Covalent relies on the AWS credentials file that is created by the CLI.
+You need to have the AWS CLI installed and configured. Covalent relies on the AWS credentials file that is created by the CLI.
 
 ```
 pip install awscli
