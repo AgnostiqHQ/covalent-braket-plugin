@@ -3,6 +3,7 @@ import os
 import subprocess
 
 import covalent as ct
+from braket.tracking import Tracker
 
 from covalent_braket_plugin.braket import BraketExecutor
 
@@ -62,21 +63,29 @@ def my_hybrid_task(num_qubits: int):
         qml.Hadamard(wires=[0])
         return qml.expval(qml.PauliZ(wires=[0]))
 
-    res = simple_circuit().numpy()
-    return res
+    with Tracker() as tracker:
+        res = simple_circuit().numpy()
+    return res, tracker
+
+
+@ct.electron
+def get_cost(tracker: Tracker):
+    return tracker.simulator_tasks_cost()
 
 
 @ct.lattice
 def simple_quantum_workflow(num_qubits: int):
-    res = my_hybrid_task(num_qubits=num_qubits)
-    return res
+    res, tracker = my_hybrid_task(num_qubits=num_qubits)
+    cost = get_cost(tracker)
+    return res, cost
 
 
 dispatch_id = ct.dispatch(simple_quantum_workflow)(1)
 print("Dispatch id:", dispatch_id)
 result_object = ct.get_result(dispatch_id, wait=True)
 
-print("Expected result:", 0.0)
-print("Actual result:", result_object.result)
+res, cost = result_object.result
+print("Result:", res)
+print("Cost:", cost)
 
-assert result_object.result == 0.0
+assert res == 0.0
