@@ -1,14 +1,16 @@
 from typing import List
-from covalent._results_manager import Result
+
 import covalent as ct
+from covalent._results_manager import Result
 
 
 def test_executor_functional():
     @ct.electron(executor="braket")
     def hybrid_task(size: int, shots: int, angles: List):
-        import pennylane as qml
-        import random
         import os
+        import random
+
+        import pennylane as qml
 
         device_arn = os.environ["AMZN_BRAKET_DEVICE_ARN"]
         s3_bucket = os.environ["AMZN_BRAKET_OUT_S3_BUCKET"]
