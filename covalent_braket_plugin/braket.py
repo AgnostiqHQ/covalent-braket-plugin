@@ -318,6 +318,7 @@ class BraketExecutor(BaseExecutor):
         login_status = docker_client.login(
             username=ecr_username, password=ecr_password, registry=ecr_registry
         )
+        app_log.debug(login_status)
         if not login_status["IdentityToken"] and login_status["Status"] == "Login Succeeded":
             app_log.debug("AWS BRAKET EXECUTOR: DOCKER CLIENT LOGIN SUCCESS")
         else:
