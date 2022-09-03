@@ -36,7 +36,7 @@ ex = BraketExecutor(
     cache_dir="/tmp/covalent",
     poll_freq=30,
     quantum_device="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
-    classical_device="ml.m5.large",
+    classical_device="ml.m5.xlarge",
     storage=30,
     time_limit=300,
 )
