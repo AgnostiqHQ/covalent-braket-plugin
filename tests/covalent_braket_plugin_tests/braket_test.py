@@ -73,8 +73,8 @@ def test_executor_init_default_values(braket_executor):
     assert braket_executor.poll_freq == MOCK_POLL_FREQ
 
 
-def test_execute(braket_executor, mocker):
-    """Test the execute method."""
+def test_run(braket_executor, mocker):
+    """Test the run method."""
 
     def mock_func(x):
         return x
@@ -87,15 +87,11 @@ def test_execute(braket_executor, mocker):
     poll_braket_job_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor._poll_braket_job"
     )
-    query_result_mock = mocker.patch("covalent_braket_plugin.braket.BraketExecutor._query_result")
-    braket_executor.execute(
-        function=mock_func,
-        args=[],
-        kwargs={"x": 1},
-        dispatch_id="mock_dispatch_id",
-        results_dir="/tmp",
-        node_id=1,
+    query_result_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._query_result", return_value=(1, "Hi", "")
     )
+    task_metadata = {"dispatch_id": "mock_dispatch_id", "node_id": 1, "results_dir": "/tmp"}
+    braket_executor.run(function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata)
     package_and_upload_mock.assert_called_once_with(
         mock_func,
         "mock_dispatch_id-1",

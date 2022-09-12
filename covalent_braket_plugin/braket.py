@@ -24,6 +24,7 @@ import base64
 import json
 import os
 import shutil
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -103,20 +104,12 @@ class BraketExecutor(BaseExecutor):
         self.time_limit = time_limit
         self.poll_freq = poll_freq
 
-    def run(self, function: Callable, args: List, kwargs: Dict):
-        pass
+    def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
 
-    def execute(
-        self,
-        function: Callable,
-        args: List,
-        kwargs: Dict,
-        dispatch_id: str,
-        results_dir: str,
-        node_id: int = -1,
-    ) -> Tuple[Any, str, str]:
+        dispatch_id = task_metadata["dispatch_id"]
+        node_id = task_metadata["node_id"]
+        results_dir = task_metadata["results_dir"]
 
-        dispatch_info = DispatchInfo(dispatch_id)
         result_filename = f"result-{dispatch_id}-{node_id}.pkl"
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
@@ -137,49 +130,54 @@ class BraketExecutor(BaseExecutor):
         # TODO: Move this to BaseExecutor
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
-        with self.get_dispatch_context(dispatch_info):
-            ecr_repo_uri = self._package_and_upload(
-                function,
-                image_tag,
-                task_results_dir,
-                result_filename,
-                args,
-                kwargs,
-            )
+        ecr_repo_uri = self._package_and_upload(
+            function,
+            image_tag,
+            task_results_dir,
+            result_filename,
+            args,
+            kwargs,
+        )
 
-            braket = boto3.client("braket")
+        braket = boto3.client("braket")
 
-            job = braket.create_job(
-                algorithmSpecification={
-                    "containerImage": {
-                        "uri": ecr_repo_uri,
-                    },
+        job = braket.create_job(
+            algorithmSpecification={
+                "containerImage": {
+                    "uri": ecr_repo_uri,
                 },
-                checkpointConfig={
-                    "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
-                },
-                deviceConfig={
-                    "device": self.quantum_device,
-                },
-                instanceConfig={
-                    "instanceType": self.classical_device,
-                    "volumeSizeInGb": self.storage,
-                },
-                jobName=f"covalent-{image_tag}",
-                outputDataConfig={
-                    "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
-                },
-                roleArn=f"arn:aws:iam::{account}:role/{self.braket_job_execution_role_name}",
-                stoppingCondition={
-                    "maxRuntimeInSeconds": self.time_limit,
-                },
-            )
+            },
+            checkpointConfig={
+                "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
+            },
+            deviceConfig={
+                "device": self.quantum_device,
+            },
+            instanceConfig={
+                "instanceType": self.classical_device,
+                "volumeSizeInGb": self.storage,
+            },
+            jobName=f"covalent-{image_tag}",
+            outputDataConfig={
+                "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
+            },
+            roleArn=f"arn:aws:iam::{account}:role/{self.braket_job_execution_role_name}",
+            stoppingCondition={
+                "maxRuntimeInSeconds": self.time_limit,
+            },
+        )
 
-            job_arn = job["jobArn"]
+        job_arn = job["jobArn"]
 
-            self._poll_braket_job(braket, job_arn)
+        self._poll_braket_job(braket, job_arn)
 
-            return self._query_result(result_filename, task_results_dir, job_arn, image_tag)
+        output, stdout, stderr = self._query_result(
+            result_filename, task_results_dir, job_arn, image_tag
+        )
+        print(stdout, end="", file=sys.stdout)
+        print(stderr, end="", file=sys.stderr)
+
+        return output
 
     def _get_ecr_info(self, image_tag: str) -> tuple:
         """Retrieve ecr details."""
