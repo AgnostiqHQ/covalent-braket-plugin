@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- BraketExecutor is now derived from AWSExecutor
+
 ### Tests
 
 - Enabled Codecov
 - Added tests
 - Update pre-commit hooks
+- Updated some tests to be async aware
 
 ## [0.4.1] - 2022-08-23
 
