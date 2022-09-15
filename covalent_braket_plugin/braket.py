@@ -20,12 +20,15 @@
 
 """AWS Braket Hybrid Jobs executor plugin for the Covalent dispatcher."""
 
+import asyncio
 import base64
 import json
 import os
 import shutil
+import sys
 import tempfile
 import time
+from functools import partial
 from pathlib import Path
 from pprint import pprint
 from typing import Any, Callable, Dict, List, Tuple
@@ -36,7 +39,7 @@ import docker
 from covalent._shared_files.logger import app_log
 from covalent._shared_files.util_classes import DispatchInfo
 from covalent._workflow.transport import TransportableObject
-from covalent.executor import BaseExecutor
+from covalent_aws_plugins import AWSExecutor
 
 from .scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 
@@ -73,7 +76,7 @@ class BraketExecutorDockerException(Exception):
         super().__init__(self.message)
 
 
-class BraketExecutor(BaseExecutor):
+class BraketExecutor(AWSExecutor):
     """AWS Braket Hybrid Jobs executor plugin class."""
 
     def __init__(
@@ -81,48 +84,152 @@ class BraketExecutor(BaseExecutor):
         credentials: str,
         profile: str,
         s3_bucket_name: str,
-        ecr_repo_name: str,
         braket_job_execution_role_name: str,
+        time_limit: int,
+        poll_freq: int,
+        ecr_repo_name: str,
         quantum_device: str,
         classical_device: str,
         storage: int,
-        time_limit: int,
-        poll_freq: int,
         **kwargs,
     ):
-        super().__init__(**kwargs)
 
-        self.credentials = credentials
-        self.profile = profile
-        self.s3_bucket_name = s3_bucket_name
+        super().__init__(
+            credentials_file=credentials,
+            profile=profile,
+            s3_bucket_name=s3_bucket_name,
+            execution_role=braket_job_execution_role_name,
+            time_limit=time_limit,
+            **kwargs,
+        )
+
         self.ecr_repo_name = ecr_repo_name
-        self.braket_job_execution_role_name = braket_job_execution_role_name
         self.quantum_device = quantum_device
         self.classical_device = classical_device
         self.storage = storage
-        self.time_limit = time_limit
         self.poll_freq = poll_freq
 
-    def run(self, function: Callable, args: List, kwargs: Dict):
+    async def _upload_task(
+        self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict
+    ):
+        """
+        Abstract method that uploads the pickled function to the remote cache.
+        """
+        image_tag = upload_metadata["image_tag"]
+        task_results_dir = upload_metadata["task_results_dir"]
+        result_filename = upload_metadata["result_filename"]
+
+        loop = asyncio.get_running_loop()
+
+        fut = loop.run_in_executor(
+            None,
+            self._package_and_upload,
+            function,
+            image_tag,
+            task_results_dir,
+            result_filename,
+            args,
+            kwargs,
+        )
+        return await fut
+
+    async def submit_task(self, submit_metadata: Dict) -> Any:
+        """
+        Abstract method that invokes the task on the remote backend.
+
+        Args:
+            task_metadata: Dictionary of metadata for the task. Current keys are
+                          `dispatch_id` and `node_id`.
+        Return:
+            task_uuid: Task UUID defined on the remote backend.
+        """
+        braket = boto3.client("braket")
+        ecr_repo_uri = submit_metadata["ecr_repo_uri"]
+        image_tag = submit_metadata["image_tag"]
+        account = submit_metadata["account"]
+
+        partial_object = partial(
+            braket.create_job,
+            algorithmSpecification={
+                "containerImage": {
+                    "uri": ecr_repo_uri,
+                },
+            },
+            checkpointConfig={
+                "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
+            },
+            deviceConfig={
+                "device": self.quantum_device,
+            },
+            instanceConfig={
+                "instanceType": self.classical_device,
+                "volumeSizeInGb": self.storage,
+            },
+            jobName=f"covalent-{image_tag}",
+            outputDataConfig={
+                "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
+            },
+            roleArn=f"arn:aws:iam::{account}:role/{self.execution_role}",
+            stoppingCondition={
+                "maxRuntimeInSeconds": self.time_limit,
+            },
+        )
+
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, partial_object)
+        job = await fut
+        return job["jobArn"]
+
+    async def _poll_task(self, poll_metadata: Dict) -> Any:
+        """
+        Abstract method that polls the remote backend until the status of a workflow's execution
+        is either COMPLETED or FAILED.
+        """
+        braket = boto3.client("braket")
+        job_arn = poll_metadata["job_arn"]
+        loop = asyncio.get_running_loop()
+        await self._poll_braket_job(braket, job_arn)
+
+    async def query_result(self, query_metadata: Dict) -> Any:
+        """
+        Abstract method that retrieves the pickled result from the remote cache.
+        """
+
+        result_filename = query_metadata["result_filename"]
+        task_results_dir = query_metadata["task_results_dir"]
+        job_arn = query_metadata["job_arn"]
+        image_tag = query_metadata["image_tag"]
+
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(
+            None,
+            self._query_result,
+            result_filename,
+            task_results_dir,
+            job_arn,
+            image_tag,
+        )
+        output, stdout, stderr = await fut
+        return output, stdout, stderr
+
+    async def cancel(self) -> bool:
+        """
+        Abstract method that sends a cancellation request to the remote backend.
+        """
         pass
 
-    def execute(
-        self,
-        function: Callable,
-        args: List,
-        kwargs: Dict,
-        dispatch_id: str,
-        results_dir: str,
-        node_id: int = -1,
-    ) -> Tuple[Any, str, str]:
+    async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
 
-        dispatch_info = DispatchInfo(dispatch_id)
+        dispatch_id = task_metadata["dispatch_id"]
+        node_id = task_metadata["node_id"]
+        results_dir = task_metadata["results_dir"]
+
         result_filename = f"result-{dispatch_id}-{node_id}.pkl"
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
 
         # AWS Credentials
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = self.credentials
+        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = self.credentials_file
         os.environ["AWS_PROFILE"] = self.profile
 
         # AWS Account Retrieval
@@ -137,49 +244,39 @@ class BraketExecutor(BaseExecutor):
         # TODO: Move this to BaseExecutor
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
 
-        with self.get_dispatch_context(dispatch_info):
-            ecr_repo_uri = self._package_and_upload(
-                function,
-                image_tag,
-                task_results_dir,
-                result_filename,
-                args,
-                kwargs,
-            )
+        upload_task_metadata = {
+            "image_tag": image_tag,
+            "task_results_dir": task_results_dir,
+            "result_filename": result_filename,
+        }
 
-            braket = boto3.client("braket")
+        ecr_repo_uri = await self._upload_task(function, args, kwargs, upload_task_metadata)
 
-            job = braket.create_job(
-                algorithmSpecification={
-                    "containerImage": {
-                        "uri": ecr_repo_uri,
-                    },
-                },
-                checkpointConfig={
-                    "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
-                },
-                deviceConfig={
-                    "device": self.quantum_device,
-                },
-                instanceConfig={
-                    "instanceType": self.classical_device,
-                    "volumeSizeInGb": self.storage,
-                },
-                jobName=f"covalent-{image_tag}",
-                outputDataConfig={
-                    "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
-                },
-                roleArn=f"arn:aws:iam::{account}:role/{self.braket_job_execution_role_name}",
-                stoppingCondition={
-                    "maxRuntimeInSeconds": self.time_limit,
-                },
-            )
+        submit_metadata = {
+            "ecr_repo_uri": ecr_repo_uri,
+            "image_tag": image_tag,
+            "account": account,
+        }
 
-            job_arn = job["jobArn"]
+        job_arn = await self.submit_task(submit_metadata)
 
-            self._poll_braket_job(braket, job_arn)
+        poll_metadata = {"job_arn": job_arn}
 
-            return self._query_result(result_filename, task_results_dir, job_arn, image_tag)
+        await self._poll_task(poll_metadata)
+
+        query_metadata = {
+            "result_filename": result_filename,
+            "task_results_dir": task_results_dir,
+            "job_arn": job_arn,
+            "image_tag": image_tag,
+        }
+
+        output, stdout, stderr = await self.query_result(query_metadata)
+
+        print(stdout, end="", file=sys.stdout)
+        print(stderr, end="", file=sys.stderr)
+
+        return output
 
     def _get_ecr_info(self, image_tag: str) -> tuple:
         """Retrieve ecr details."""
@@ -345,7 +442,7 @@ class BraketExecutor(BaseExecutor):
             app_log.debug(f"AWS BRAKET EXECUTOR: DOCKER IMAGE PUSH SUCCESS {response}")
         return ecr_repo_uri
 
-    def get_status(self, braket, job_arn: str) -> str:
+    async def get_status(self, braket, job_arn: str) -> str:
         """Query the status of a previously submitted Braket hybrid job.
 
         Args:
@@ -356,12 +453,14 @@ class BraketExecutor(BaseExecutor):
             status: String describing the job status.
         """
 
-        job = braket.get_job(jobArn=job_arn)
+        loop = asyncio.get_running_loop()
+        get_job_callable = partial(braket.get_job, jobArn=job_arn)
+        job = await loop.run_in_executor(None, get_job_callable)
         status = job["status"]
 
         return status
 
-    def _poll_braket_job(self, braket, job_arn: str) -> None:
+    async def _poll_braket_job(self, braket, job_arn: str) -> None:
         """Poll a Braket hybrid job until completion.
 
         Args:
@@ -372,14 +471,17 @@ class BraketExecutor(BaseExecutor):
             None
         """
 
-        status = self.get_status(braket, job_arn)
+        status = await self.get_status(braket, job_arn)
 
+        loop = asyncio.get_running_loop()
         while status not in ["COMPLETED", "FAILED", "CANCELLED"]:
-            time.sleep(self.poll_freq)
-            status = self.get_status(braket, job_arn)
+            await asyncio.sleep(self.poll_freq)
+            status = await self.get_status(braket, job_arn)
 
         if status == "FAILED":
-            failure_reason = braket.get_job(jobArn=job_arn)["failureReason"]
+            get_job_callable = partial(braket.get_job, jobArn=job_arn)
+            job = await loop.run_in_executor(None, get_job_callable)
+            failure_reason = job["failureReason"]
             raise Exception(failure_reason)
 
     def _query_result(

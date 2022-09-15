@@ -61,11 +61,11 @@ def braket_executor():
 
 def test_executor_init_default_values(braket_executor):
     """Test that the init values of the executor are set properly."""
-    assert braket_executor.credentials == MOCK_CREDENTIALS
+    assert braket_executor.credentials_file == MOCK_CREDENTIALS
     assert braket_executor.profile == MOCK_PROFILE
     assert braket_executor.s3_bucket_name == MOCK_S3_BUCKET_NAME
     assert braket_executor.ecr_repo_name == MOCK_ECR_REPO_NAME
-    assert braket_executor.braket_job_execution_role_name == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
+    assert braket_executor.execution_role == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
     assert braket_executor.quantum_device == MOCK_QUANTUM_DEVICE
     assert braket_executor.classical_device == MOCK_CLASSICAL_DEVICE
     assert braket_executor.storage == MOCK_STORAGE
@@ -73,8 +73,9 @@ def test_executor_init_default_values(braket_executor):
     assert braket_executor.poll_freq == MOCK_POLL_FREQ
 
 
-def test_execute(braket_executor, mocker):
-    """Test the execute method."""
+@pytest.mark.asyncio
+async def test_run(braket_executor, mocker):
+    """Test the run method."""
 
     def mock_func(x):
         return x
@@ -87,14 +88,12 @@ def test_execute(braket_executor, mocker):
     poll_braket_job_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor._poll_braket_job"
     )
-    query_result_mock = mocker.patch("covalent_braket_plugin.braket.BraketExecutor._query_result")
-    braket_executor.execute(
-        function=mock_func,
-        args=[],
-        kwargs={"x": 1},
-        dispatch_id="mock_dispatch_id",
-        results_dir="/tmp",
-        node_id=1,
+    query_result_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._query_result", return_value=(1, "Hi", "")
+    )
+    task_metadata = {"dispatch_id": "mock_dispatch_id", "node_id": 1, "results_dir": "/tmp"}
+    await braket_executor.run(
+        function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata
     )
     package_and_upload_mock.assert_called_once_with(
         mock_func,
@@ -172,7 +171,8 @@ def test_package_and_upload(braket_executor, mocker):
     get_ecr_info_mock.assert_called_once()
 
 
-def test_get_status(braket_executor):
+@pytest.mark.asyncio
+async def test_get_status(braket_executor):
     """Test the get status method."""
 
     class MockBraket:
@@ -182,14 +182,15 @@ def test_get_status(braket_executor):
             elif jobArn == "2":
                 return {"status": "RUNNING"}
 
-    status = braket_executor.get_status(braket=MockBraket(), job_arn="1")
+    status = await braket_executor.get_status(braket=MockBraket(), job_arn="1")
     assert status == "SUCCESS"
 
-    status = braket_executor.get_status(braket=MockBraket(), job_arn="2")
+    status = await braket_executor.get_status(braket=MockBraket(), job_arn="2")
     assert status == "RUNNING"
 
 
-def test_poll_braket_job(braket_executor, mocker):
+@pytest.mark.asyncio
+async def test_poll_braket_job(braket_executor, mocker):
     """Test the method to poll the batch job."""
     get_status_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor.get_status",
@@ -202,8 +203,8 @@ def test_poll_braket_job(braket_executor, mocker):
     )
 
     with pytest.raises(Exception):
-        braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
-    get_status_mock.assert_called()
+        await braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
+    get_status_mock.assert_awaited()
 
 
 def test_query_result(braket_executor, mocker):
@@ -232,3 +233,8 @@ def test_query_result(braket_executor, mocker):
         "mock_logs\n",
         "",
     )
+
+
+@pytest.mark.asyncio
+async def test_stubs(braket_executor):
+    await braket_executor.cancel()
