@@ -475,7 +475,7 @@ class BraketExecutor(AWSExecutor):
 
         loop = asyncio.get_running_loop()
         while status not in ["COMPLETED", "FAILED", "CANCELLED"]:
-            time.sleep(self.poll_freq)
+            await asyncio.sleep(self.poll_freq)
             status = await self.get_status(braket, job_arn)
 
         if status == "FAILED":
