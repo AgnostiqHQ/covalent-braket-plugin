@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.6.0] - 2022-09-16
+
 ### Changed
 
 - Updated requirements.txt to pin aws executor plugins to pre-release version 0.1.0rc0
