@@ -81,24 +81,32 @@ class BraketExecutor(AWSExecutor):
 
     def __init__(
         self,
-        s3_bucket_name: str = get_config("executors.braket.s3_bucket_name"),
-        classical_device: str = get_config("executors.braket.classical_device"),
-        braket_job_execution_role_name: str = get_config(
-            "executors.braket.braket_job_execution_role_name"
-        ),
-        ecr_repo_name: str = get_config("executors.braket.ecr_repo_name"),
-        storage: int = get_config("executors.braket.storage"),
-        time_limit: int = get_config("executors.braket.time_limit"),
-        poll_freq: int = get_config("executors.braket.poll_freq"),
-        quantum_device: str = get_config("executors.braket.quantum_device"),
-        profile: str = get_config("executors.braket.profile"),
-        credentials: str = get_config("executors.braket.credentials"),
-        cache_dir: str = get_config("executors.braket.cache_dir"),
+        s3_bucket_name: str = None,
+        classical_device: str = None,
+        braket_job_execution_role_name: str = None,
+        ecr_repo_name: str = None,
+        storage: int = None,
+        time_limit: int = None,
+        poll_freq: int = None,
+        quantum_device: str = None,
+        profile: str = None,
+        credentials: str = None,
+        cache_dir: str = None,
         region: str = None,
         **kwargs,
     ):
 
         # we exclude region from get_config as we want AWSExecutor to properly treat cases where it's not explicitly defined.
+        credentials = credentials or get_config("executors.braket.credentials")
+        profile = profile or get_config("executors.braket.profile")
+        s3_bucket_name = s3_bucket_name or get_config("executors.braket.s3_bucket_name")
+        braket_job_execution_role_name = braket_job_execution_role_name or get_config(
+            "executors.braket.braket_job_execution_role_name"
+        )
+        s3_bucket_name = s3_bucket_name or get_config("executors.braket.s3_bucket_name")
+        cache_dir = cache_dir or get_config("executors.braket.cache_dir")
+        time_limit = time_limit or get_config("executors.braket.time_limit")
+        poll_freq = poll_freq or get_config("executors.braket.poll_freq")
 
         super().__init__(
             credentials_file=credentials,
@@ -112,10 +120,10 @@ class BraketExecutor(AWSExecutor):
             **kwargs,
         )
 
-        self.ecr_repo_name = ecr_repo_name
-        self.quantum_device = quantum_device
-        self.classical_device = classical_device
-        self.storage = storage
+        self.ecr_repo_name = ecr_repo_name or get_config("executors.braket.ecr_repo_name")
+        self.quantum_device = quantum_device or get_config("executors.braket.quantum_device")
+        self.classical_device = classical_device or get_config("executors.braket.classical_device")
+        self.storage = storage or get_config("executors.braket.storage")
 
     async def _upload_task(
         self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict

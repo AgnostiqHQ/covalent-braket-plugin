@@ -38,13 +38,15 @@ MOCK_ECR_REPO_NAME = "mock_ecr_repo_name"
 MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME = "mock_role_name"
 MOCK_QUANTUM_DEVICE = "mock_device"
 MOCK_CLASSICAL_DEVICE = "mock_device"
-MOCK_STORAGE = 0
-MOCK_TIME_LIMIT = 0
-MOCK_POLL_FREQ = 0
+MOCK_STORAGE = 1
+MOCK_TIME_LIMIT = 1
+MOCK_POLL_FREQ = 1
 
 
 @pytest.fixture
-def braket_executor():
+def braket_executor(mocker):
+    config_mock = mocker.patch("covalent_braket_plugin.braket.get_config")
+    config_mock.return_value = "default"
     return BraketExecutor(
         credentials=MOCK_CREDENTIALS,
         profile=MOCK_PROFILE,
