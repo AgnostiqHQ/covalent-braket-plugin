@@ -81,9 +81,9 @@ class BraketExecutor(AWSExecutor):
 
     def __init__(
         self,
-        s3_bucket_name: str,
-        braket_job_execution_role_name: str,
-        ecr_repo_name: str,
+        s3_bucket_name: str = None,
+        braket_job_execution_role_name: str = None,
+        ecr_repo_name: str = None,
         classical_device: str = None,
         storage: int = None,
         time_limit: int = None,
