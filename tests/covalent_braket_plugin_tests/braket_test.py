@@ -137,9 +137,7 @@ def test_package_and_upload(braket_executor, mocker):
             return filename
 
     """Test the package and upload method."""
-    upload_file_to_s3_mock = mocker.patch(
-        "covalent_braket_plugin.braket.boto3.client", return_value=MockClient()
-    )
+    boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
     format_exec_script_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor._format_exec_script", return_value=""
     )
@@ -165,7 +163,7 @@ def test_package_and_upload(braket_executor, mocker):
         [],
         {},
     )
-    upload_file_to_s3_mock.assert_called_once()
+    boto3_mock.Session().client().upload_file.assert_called_once()
     format_exec_script_mock.assert_called_once()
     format_dockerfile_mock.assert_called_once()
     get_ecr_info_mock.assert_called_once()
@@ -210,20 +208,25 @@ async def test_poll_braket_job(braket_executor, mocker):
 def test_query_result(braket_executor, mocker):
     """Test the method to query the results."""
 
-    class MockClient:
-        def download_file(self, filename, bucket_name, func_filename):
-            return filename
+    def download_file(filename, bucket_name, func_filename):
+        return filename
 
-        def describe_log_streams(self, logGroupName, logStreamNamePrefix):
-            print("******DESCRIBE LOG STREAMS********")
-            print(logGroupName)
-            print(logStreamNamePrefix)
-            return {"logStreams": [{"logStreamName": f"{logStreamNamePrefix}-mock-name"}]}
+    def describe_log_streams(logGroupName, logStreamNamePrefix):
+        print("******DESCRIBE LOG STREAMS********")
+        print(logGroupName)
+        print(logStreamNamePrefix)
+        return {"logStreams": [{"logStreamName": f"{logStreamNamePrefix}-mock-name"}]}
 
-        def get_log_events(self, logGroupName, logStreamName):
-            return {"events": [{"message": "mock_logs"}]}
+    def get_log_events(logGroupName, logStreamName):
+        return {"events": [{"message": "mock_logs"}]}
 
-    mocker.patch("covalent_braket_plugin.braket.boto3.client", return_value=MockClient())
+    boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
+    boto3_client_mock = boto3_mock.Session().client()
+
+    boto3_client_mock.download_file.side_effect = download_file
+    boto3_client_mock.describe_log_streams.side_effect = describe_log_streams
+    boto3_client_mock.get_log_events.side_effect = get_log_events
+
     task_results_dir, result_filename = "/tmp", "mock_result_filename.pkl"
     local_result_filename = os.path.join(task_results_dir, result_filename)
     with open(local_result_filename, "wb") as f:

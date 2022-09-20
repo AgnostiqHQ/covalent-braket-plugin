@@ -36,8 +36,8 @@ from typing import Any, Callable, Dict, List, Tuple
 import boto3
 import cloudpickle as pickle
 import docker
+from covalent._shared_files.config import get_config
 from covalent._shared_files.logger import app_log
-from covalent._shared_files.util_classes import DispatchInfo
 from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
@@ -81,25 +81,34 @@ class BraketExecutor(AWSExecutor):
 
     def __init__(
         self,
-        credentials: str,
-        profile: str,
-        s3_bucket_name: str,
-        braket_job_execution_role_name: str,
-        time_limit: int,
-        poll_freq: int,
-        ecr_repo_name: str,
-        quantum_device: str,
-        classical_device: str,
-        storage: int,
+        s3_bucket_name: str = get_config("executors.braket.s3_bucket_name"),
+        classical_device: str = get_config("executors.braket.classical_device"),
+        braket_job_execution_role_name: str = get_config(
+            "executors.braket.braket_job_execution_role_name"
+        ),
+        ecr_repo_name: str = get_config("executors.braket.ecr_repo_name"),
+        storage: int = get_config("executors.braket.storage"),
+        time_limit: int = get_config("executors.braket.time_limit"),
+        poll_freq: int = get_config("executors.braket.poll_freq"),
+        quantum_device: str = get_config("executors.braket.quantum_device"),
+        profile: str = get_config("executors.braket.profile"),
+        credentials: str = get_config("executors.braket.credentials"),
+        cache_dir: str = get_config("executors.braket.cache_dir"),
+        region: str = None,
         **kwargs,
     ):
+
+        # we exclude region from get_config as we want AWSExecutor to properly treat cases where it's not explicitly defined.
 
         super().__init__(
             credentials_file=credentials,
             profile=profile,
             s3_bucket_name=s3_bucket_name,
             execution_role=braket_job_execution_role_name,
+            region=region,
+            cache_dir=cache_dir,
             time_limit=time_limit,
+            poll_freq=poll_freq,
             **kwargs,
         )
 
@@ -107,7 +116,6 @@ class BraketExecutor(AWSExecutor):
         self.quantum_device = quantum_device
         self.classical_device = classical_device
         self.storage = storage
-        self.poll_freq = poll_freq
 
     async def _upload_task(
         self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict
@@ -143,7 +151,7 @@ class BraketExecutor(AWSExecutor):
         Return:
             task_uuid: Task UUID defined on the remote backend.
         """
-        braket = boto3.client("braket")
+        braket = boto3.Session(**self.boto_session_options()).client("braket")
         ecr_repo_uri = submit_metadata["ecr_repo_uri"]
         image_tag = submit_metadata["image_tag"]
         account = submit_metadata["account"]
@@ -185,7 +193,7 @@ class BraketExecutor(AWSExecutor):
         Abstract method that polls the remote backend until the status of a workflow's execution
         is either COMPLETED or FAILED.
         """
-        braket = boto3.client("braket")
+        braket = boto3.Session(**self.boto_session_options()).client("braket")
         job_arn = poll_metadata["job_arn"]
         loop = asyncio.get_running_loop()
         await self._poll_braket_job(braket, job_arn)
@@ -228,18 +236,9 @@ class BraketExecutor(AWSExecutor):
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
 
-        # AWS Credentials
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = self.credentials_file
-        os.environ["AWS_PROFILE"] = self.profile
-
         # AWS Account Retrieval
-        sts = boto3.client("sts")
-        identity = sts.get_caller_identity()
+        identity = self._validate_credentials(raise_exception=True)
         account = identity.get("Account")
-
-        if account is None:
-            app_log.warning(identity)
-            return None, "", identity
 
         # TODO: Move this to BaseExecutor
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
@@ -283,7 +282,7 @@ class BraketExecutor(AWSExecutor):
         app_log.debug("AWS BRAKET EXECUTOR: INSIDE ECR INFO METHOD")
         app_log.debug("get_ecr_info")
         app_log.debug(f"profile is {self.profile}")
-        ecr = boto3.Session(profile_name=self.profile).client("ecr")
+        ecr = boto3.Session(**self.boto_session_options()).client("ecr")
         ecr_credentials = ecr.get_authorization_token()["authorizationData"][0]
         ecr_password = (
             base64.b64decode(ecr_credentials["authorizationToken"])
@@ -372,7 +371,7 @@ class BraketExecutor(AWSExecutor):
             function_file.flush()
 
             # Upload pickled function to S3
-            s3 = boto3.client("s3")
+            s3 = boto3.Session(**self.boto_session_options()).client("s3")
             s3.upload_file(function_file.name, self.s3_bucket_name, func_filename)
 
         with tempfile.NamedTemporaryFile(
@@ -503,14 +502,14 @@ class BraketExecutor(AWSExecutor):
 
         local_result_filename = os.path.join(task_results_dir, result_filename)
 
-        s3 = boto3.client("s3")
+        s3 = boto3.Session(**self.boto_session_options()).client("s3")
         s3.download_file(self.s3_bucket_name, result_filename, local_result_filename)
 
         with open(local_result_filename, "rb") as f:
             result = pickle.load(f)
         os.remove(local_result_filename)
 
-        logs = boto3.client("logs")
+        logs = boto3.Session(**self.boto_session_options()).client("logs")
 
         log_group_name = "/aws/braket/jobs"
         log_stream_prefix = f"covalent-{image_tag}"
