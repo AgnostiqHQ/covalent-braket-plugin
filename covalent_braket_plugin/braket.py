@@ -125,18 +125,6 @@ class BraketExecutor(AWSExecutor):
         self.classical_device = classical_device or get_config("executors.braket.classical_device")
         self.storage = storage or get_config("executors.braket.storage")
 
-        config = {
-            "credentials": self.credentials_file,
-            "profile": self.profile,
-            "s3_bucket_name": self.s3_bucket_name,
-            "execution_role": self.execution_role,
-            "cache_dir": self.cache_dir,
-            "poll_freq": self.poll_freq,
-            "time_limit": self.time_limit,
-            "classical_device": self.classical_device,
-        }
-        print(config)
-
     async def _upload_task(
         self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict
     ):
