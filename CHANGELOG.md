@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.6.1] - 2022-09-20
+
 ### Fixed
 
 - Getting default values from config file if not defined in class instance
