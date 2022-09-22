@@ -14,61 +14,45 @@
 
 ## Covalent Braket Hybrid Jobs Plugin
 
-Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with [AWS Braket Hybrid Jobs](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs.html) by containerizing hybrid tasks and uploading them to the Elastic Container Registry.
-
-In order for workflows to be deployable, users must have AWS credentials allowing access to Braket, S3, ECR, and some other services. Users will need additional permissions to provision or manage cloud infrastructure used by this plugin. These permissions must be defined in an IAM Role with the name CovalentBraketJobsExecutionRole. [An example of the permissions that must be attached to the role can be found here](infra/iam/CovalentBraketJobsExecutionPolicy.json). [AWS documentation has more information about managing Braket access](https://docs.aws.amazon.com/braket/latest/developerguide/braket-manage-access.html).
+Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with [AWS Braket Hybrid Jobs](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs.html)
+## Installing
 
 To use this plugin with Covalent, install it with `pip`:
-
 ```
 pip install covalent-braket-plugin
 ```
 
-You need to have the AWS CLI installed and configured. Covalent relies on the AWS credentials file that is created by the CLI.
+## Usage Example
 
-```
-pip install awscli
-aws configure
-```
-
-Set the environment variable `BRAKET_JOB_IMAGES` to some name for where your images will be stored, for example `my-braket-images`. Then create the repository.
-```
-aws ecr create-repository --repository-name $BRAKET_JOB_IMAGES
-```
-
-Set the environment variable `BRAKET_COVALENT_S3` to some name for where your pickle files and Braket results will be stored on the cloud. *The name _must_ begin with `amazon-braket`*. For example `amazon-braket-my-bucket`. Then create the bucket.
-```
-aws s3api create-bucket --bucket $BRAKET_COVALENT_S3 --region us-east-1
-```
-
-After starting Covalent, a section is added to the Covalent [configuration](https://covalent.readthedocs.io/en/latest/how_to/config/customization.html) to support the Braket Hybrid Jobs plugin. Below is an example which works using some basic infrastructure created for testing purposes:
-
-```console
-[executors.braket]
-credentials = "/home/user/.aws/credentials"
-profile = ""
-s3_bucket_name = "amazon-braket-covalent-job-resources"
-ecr_repo_name = "covalent-braket-job-images"
-cache_dir = "/tmp/covalent"
-poll_freq = 30
-braket_job_execution_role_name = "CovalentBraketJobsExecutionRole"
-quantum_device = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-classical_device = "ml.m5.large"
-storage = 30
-time_limit = 300
-```
-
-These values may be customized. Note that the set of classical devices is constrained to [certain types](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs-configure-job-instance-for-script.html).
-
-Finally, [Docker engine](https://docs.docker.com/engine/install/) must be installed and running before dispatching a workflow using this plugin.
-
-Within a workflow, users can decorate electrons using these default settings:
+The following workflow prepares a uniform superposition of the single-qubit standard basis states and measures it.
 
 ```python
 import covalent as ct
+from covalent_braket_plugin.braket import BraketExecutor
+import os
 
-@ct.electron(executor="braket")
-def my_hybrid_task(num_qubits: int, shots: int):
+# AWS resources to pass to the executor
+credentials_file = "~/.aws/credentials"
+profile = "default"
+s3_bucket_name = "braket_s3_bucket"
+ecr_repo_name = "braket_ecr_repo"
+iam_role_name = "covalent-braket-iam-role"
+
+ex = BraketExecutor(
+    credentials=credentials_file,
+    profile=profile,
+    s3_bucket_name=s3_bucket_name,
+    ecr_repo_name=ecr_repo_name,
+    braket_job_execution_role_name=iam_role_name,
+    quantum_device="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+    classical_device="ml.m5.large",
+    storage=30,
+    time_limit=300,
+)
+
+
+@ct.electron(executor=ex)
+def simple_quantum_task(num_qubits: int):
     import pennylane as qml
 
     # These are passed to the Hybrid Jobs container at runtime
@@ -78,47 +62,63 @@ def my_hybrid_task(num_qubits: int, shots: int):
 
     device = qml.device(
         "braket.aws.qubit",
-	device_arn=device_arn,
-	s3_destination_folder=(s3_bucket, s3_task_dir),
-	wires=num_qubits,
-	shots=shots,
-	parallel=True,
-	max_parallel=4
+        device_arn=device_arn,
+        s3_destination_folder=(s3_bucket, s3_task_dir),
+        wires=num_qubits,
     )
 
-    @qml.qnode(device)
-    def circuit():
-        # Define the circuit here
+    @qml.qnode(device=device)
+    def simple_circuit():
+        qml.Hadamard(wires=[0])
+        return qml.expval(qml.PauliZ(wires=[0]))
 
-    # Invoke the circuit and iterate as needed
+    res = simple_circuit().numpy()
+    return res
+
+
+@ct.lattice
+def simple_quantum_workflow(num_qubits: int):
+    return simple_quantum_task(num_qubits=num_qubits)
+
+
+dispatch_id = ct.dispatch(simple_quantum_workflow)(1)
+result_object = ct.get_result(dispatch_id, wait=True)
+
+# We expect 0 as the result
+print("Result:", result_object.result)
 ```
 
-or use a class object to customize the resources and other behavior:
+To run such workflows, users must have AWS credentials allowing access
+to Braket, ECR, S3, and some other services. These permissions must be
+defined in an IAM Role (called `"covalent-braket-iam-role"` in this
+example). The [AWS
+documentation has more information about managing Braket
+access](https://docs.aws.amazon.com/braket/latest/developerguide/braket-manage-access.html).
+In addition, since tasks are [packaged in
+containers](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs-byoc.html)
+and shipped to ECR, the Docker daemon will need to be installed
+locally.
 
-```python
-executor = ct.executor.BraketExecutor(
-    classical_device = "ml.p3.2xlarge" # Includes a V100 GPU and 8 vCPUs
-    quantum_device = "arn:aws:braket:::device/qpu/rigetti/Aspen-11", # 47-qubit QPU
-    time_limit = 600, # 10-minute time limit
-)
-def my_custom_hybrid_task():
-    # Task definition goes here
-```
+## Overview of Configuration
 
-For more information about how to get started with Covalent, check out the project [homepage](https://github.com/AgnostiqHQ/covalent) and the official [documentation](https://covalent.readthedocs.io/en/latest/).
+See the
+[RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html)
+for how to configure this executor.
 
-### Note :bulb:
+## Required Cloud Resources
 
-If the script fails quickly, check `covalent logs`. If there is an ERROR in the logs, it should include helpful output on what you need to do to get it to run, for example
+The following resources will need to be configured on AWS and passed
+to the `BraketExecutor` constructor.
 
-```
-ERROR - Exception occurred when running task 3: There was an error uploading the Docker image to ECR.
-This may be resolved by removing ~/.docker/config.json and trying your dispatch again.
-For more information, see
-https://stackoverflow.com/a/55103262/5513030
-https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html
-denied: Your authorization token has expired. Reauthenticate and try again.
-```
+|Resource|Config Name|Description|
+|---|---|---|
+|IAM Role|`braket_job_execution_role_name`|The IAM role that Braket assumes during execution of your tasks|
+|S3 Bucket|`s3_bucket_name`|Name of an AWS S3 bucket for storing temporary files|
+|ECR Repo|`ecr_repo_name`|Name of an AWS ECR registry for hosting the job container|
+
+Please consult the
+[RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html)
+for more details on provisioning these resources.
 
 ## Release Notes
 
@@ -133,4 +133,8 @@ Please use the following citation in any publications:
 
 ## License
 
-Covalent is licensed under the GNU Affero GPL 3.0 License. Covalent may be distributed under other licenses upon request. See the [LICENSE](https://github.com/AgnostiqHQ/covalent-braket-plugin/blob/main/LICENSE) file or contact the [support team](mailto:support@agnostiq.ai) for more details.
+Covalent is licensed under the GNU Affero GPL 3.0 License. Covalent
+may be distributed under other licenses upon request. See the
+[LICENSE](https://github.com/AgnostiqHQ/covalent-braket-plugin/blob/main/LICENSE)
+file or contact the [support team](mailto:support@agnostiq.ai) for
+more details.
