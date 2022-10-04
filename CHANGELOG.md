@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-
 ### Docs
 
 - Simplified README
+
+## [0.7.0] - 2022-09-30
+
+### Added
+
+-  Logic to specify that only the base covalent-aws-plugins package is to be installed.
 
 ## [0.6.1] - 2022-09-20
 
