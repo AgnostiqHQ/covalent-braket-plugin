@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added license workflow
 
+## [0.7.1] - 2022-10-06
+
+### Fixed
+
+- Store `BASE_COVALENT_AWS_PLUGINS_ONLY` in a temporary file rather than storing it as an environment variable.
+
+### Docs
+
+- Simplified README
+
+## [0.7.0] - 2022-09-30
+
+### Added
+
+-  Logic to specify that only the base covalent-aws-plugins package is to be installed.
+
 ## [0.6.1] - 2022-09-20
 
 ### Fixed
