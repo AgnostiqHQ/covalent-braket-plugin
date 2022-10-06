@@ -46,7 +46,6 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
     or "amazon-braket-covalent-job-resources",
-    "ecr_repo_name": os.environ.get("BRAKET_JOB_IMAGES") or "covalent-braket-job-images",
     "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
     "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     "classical_device": "ml.m5.large",
@@ -66,7 +65,6 @@ class BraketExecutor(AWSExecutor):
         self,
         s3_bucket_name: str = None,
         braket_job_execution_role_name: str = None,
-        ecr_repo_name: str = None,
         ecr_image_uri: str = None,
         classical_device: str = None,
         storage: int = None,
@@ -104,7 +102,6 @@ class BraketExecutor(AWSExecutor):
             **kwargs,
         )
 
-        self.ecr_repo_name = ecr_repo_name or get_config("executors.braket.ecr_repo_name")
         self.ecr_image_uri = ecr_image_uri
         self.quantum_device = quantum_device or get_config("executors.braket.quantum_device")
         self.classical_device = classical_device or get_config("executors.braket.classical_device")
