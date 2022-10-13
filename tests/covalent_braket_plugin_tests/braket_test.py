@@ -34,7 +34,6 @@ from covalent_braket_plugin.scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 MOCK_CREDENTIALS = "mock_credentials"
 MOCK_PROFILE = "mock_profile"
 MOCK_S3_BUCKET_NAME = "mock_s3_bucket_name"
-MOCK_ECR_REPO_NAME = "mock_ecr_repo_name"
 MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME = "mock_role_name"
 MOCK_QUANTUM_DEVICE = "mock_device"
 MOCK_CLASSICAL_DEVICE = "mock_device"
@@ -51,7 +50,6 @@ def braket_executor(mocker):
         credentials=MOCK_CREDENTIALS,
         profile=MOCK_PROFILE,
         s3_bucket_name=MOCK_S3_BUCKET_NAME,
-        ecr_repo_name=MOCK_ECR_REPO_NAME,
         braket_job_execution_role_name=MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME,
         quantum_device=MOCK_QUANTUM_DEVICE,
         classical_device=MOCK_CLASSICAL_DEVICE,
@@ -66,7 +64,6 @@ def test_executor_init_default_values(braket_executor):
     assert braket_executor.credentials_file == MOCK_CREDENTIALS
     assert braket_executor.profile == MOCK_PROFILE
     assert braket_executor.s3_bucket_name == MOCK_S3_BUCKET_NAME
-    assert braket_executor.ecr_repo_name == MOCK_ECR_REPO_NAME
     assert braket_executor.execution_role == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
     assert braket_executor.quantum_device == MOCK_QUANTUM_DEVICE
     assert braket_executor.classical_device == MOCK_CLASSICAL_DEVICE

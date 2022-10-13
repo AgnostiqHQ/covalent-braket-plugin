@@ -34,6 +34,7 @@ from pprint import pprint
 from typing import Any, Callable, Dict, List, Tuple
 
 import boto3
+import botocore
 import cloudpickle as pickle
 import docker
 from covalent._shared_files.config import get_config
@@ -41,7 +42,7 @@ from covalent._shared_files.logger import app_log
 from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
-from .scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
+ECR_REPO_URI = "public.ecr.aws/covalent/covalent-braket-executor:latest"
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
@@ -49,7 +50,6 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
     or "amazon-braket-covalent-job-resources",
-    "ecr_repo_name": os.environ.get("BRAKET_JOB_IMAGES") or "covalent-braket-job-images",
     "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
     "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     "classical_device": "ml.m5.large",
@@ -83,7 +83,6 @@ class BraketExecutor(AWSExecutor):
         self,
         s3_bucket_name: str = None,
         braket_job_execution_role_name: str = None,
-        ecr_repo_name: str = None,
         classical_device: str = None,
         storage: int = None,
         time_limit: int = None,
@@ -120,7 +119,6 @@ class BraketExecutor(AWSExecutor):
             **kwargs,
         )
 
-        self.ecr_repo_name = ecr_repo_name or get_config("executors.braket.ecr_repo_name")
         self.quantum_device = quantum_device or get_config("executors.braket.quantum_device")
         self.classical_device = classical_device or get_config("executors.braket.classical_device")
         self.storage = storage or get_config("executors.braket.storage")
@@ -132,8 +130,6 @@ class BraketExecutor(AWSExecutor):
         Abstract method that uploads the pickled function to the remote cache.
         """
         image_tag = upload_metadata["image_tag"]
-        task_results_dir = upload_metadata["task_results_dir"]
-        result_filename = upload_metadata["result_filename"]
 
         loop = asyncio.get_running_loop()
 
@@ -142,8 +138,6 @@ class BraketExecutor(AWSExecutor):
             self._package_and_upload,
             function,
             image_tag,
-            task_results_dir,
-            result_filename,
             args,
             kwargs,
         )
@@ -160,40 +154,59 @@ class BraketExecutor(AWSExecutor):
             task_uuid: Task UUID defined on the remote backend.
         """
         braket = boto3.Session(**self.boto_session_options()).client("braket")
-        ecr_repo_uri = submit_metadata["ecr_repo_uri"]
+
+        image_tag = submit_metadata["image_tag"]
+        result_filename = submit_metadata["result_filename"]
         image_tag = submit_metadata["image_tag"]
         account = submit_metadata["account"]
 
-        partial_object = partial(
-            braket.create_job,
-            algorithmSpecification={
+        func_filename = f"func-{image_tag}.pkl"
+
+        app_log.debug(f"Using ecr repo uri: {ECR_REPO_URI}")
+        app_log.debug(f"Using func_filename: {func_filename}")
+        app_log.debug(f"Using result_filename: {result_filename}")
+        app_log.debug(f"Using s3_bucket_name: {self.s3_bucket_name}")
+
+        args = {
+            "hyperParameters": {
+                "COVALENT_TASK_FUNC_FILENAME": func_filename,
+                "RESULT_FILENAME": result_filename,
+                "S3_BUCKET_NAME": self.s3_bucket_name,
+            },
+            "algorithmSpecification": {
                 "containerImage": {
-                    "uri": ecr_repo_uri,
+                    "uri": ECR_REPO_URI,
                 },
             },
-            checkpointConfig={
+            "checkpointConfig": {
                 "s3Uri": f"s3://{self.s3_bucket_name}/checkpoints/{image_tag}",
             },
-            deviceConfig={
+            "deviceConfig": {
                 "device": self.quantum_device,
             },
-            instanceConfig={
+            "instanceConfig": {
                 "instanceType": self.classical_device,
                 "volumeSizeInGb": self.storage,
             },
-            jobName=f"covalent-{image_tag}",
-            outputDataConfig={
+            "jobName": f"covalent-{image_tag}",
+            "outputDataConfig": {
                 "s3Path": f"s3://{self.s3_bucket_name}/braket/{image_tag}",
             },
-            roleArn=f"arn:aws:iam::{account}:role/{self.execution_role}",
-            stoppingCondition={
+            "roleArn": f"arn:aws:iam::{account}:role/{self.execution_role}",
+            "stoppingCondition": {
                 "maxRuntimeInSeconds": self.time_limit,
             },
-        )
+        }
 
-        loop = asyncio.get_running_loop()
-        fut = loop.run_in_executor(None, partial_object)
-        job = await fut
+        app_log.debug("Using job args:")
+        app_log.debug(args)
+        try:
+            job = braket.create_job(**args)
+
+        except botocore.exceptions.ClientError as error:
+            app_log.debug(error.response)
+            raise error
+
         return job["jobArn"]
 
     async def _poll_task(self, poll_metadata: Dict) -> Any:
@@ -253,17 +266,19 @@ class BraketExecutor(AWSExecutor):
 
         upload_task_metadata = {
             "image_tag": image_tag,
+        }
+
+        await self._upload_task(function, args, kwargs, upload_task_metadata)
+
+        submit_metadata = {
+            "image_tag": image_tag,
+            "account": account,
             "task_results_dir": task_results_dir,
             "result_filename": result_filename,
         }
 
-        ecr_repo_uri = await self._upload_task(function, args, kwargs, upload_task_metadata)
-
-        submit_metadata = {
-            "ecr_repo_uri": ecr_repo_uri,
-            "image_tag": image_tag,
-            "account": account,
-        }
+        app_log.debug("Submit metadata:")
+        app_log.debug(submit_metadata)
 
         job_arn = await self.submit_task(submit_metadata)
 
@@ -285,72 +300,10 @@ class BraketExecutor(AWSExecutor):
 
         return output
 
-    def _get_ecr_info(self, image_tag: str) -> tuple:
-        """Retrieve ecr details."""
-        app_log.debug("AWS BRAKET EXECUTOR: INSIDE ECR INFO METHOD")
-        app_log.debug("get_ecr_info")
-        app_log.debug(f"profile is {self.profile}")
-        ecr = boto3.Session(**self.boto_session_options()).client("ecr")
-        ecr_credentials = ecr.get_authorization_token()["authorizationData"][0]
-        ecr_password = (
-            base64.b64decode(ecr_credentials["authorizationToken"])
-            .replace(b"AWS:", b"")
-            .decode("utf-8")
-        )
-        ecr_registry = ecr_credentials["proxyEndpoint"]
-        ecr_repo_uri = f"{ecr_registry.replace('https://', '')}/{self.ecr_repo_name}:{image_tag}"
-        return ecr_password, ecr_registry, ecr_repo_uri
-
-    def _format_exec_script(
-        self,
-        func_filename: str,
-        result_filename: str,
-        docker_working_dir: str,
-    ) -> str:
-        """Create an executable Python script which executes the task.
-
-        Args:
-            func_filename: Name of the pickled function.
-            result_filename: Name of the pickled result.
-            docker_working_dir: Name of the working directory in the container.
-            args: Positional arguments consumed by the task.
-            kwargs: Keyword arguments consumed by the task.
-
-        Returns:
-            script: String object containing the executable Python script.
-        """
-
-        app_log.debug("AWS BRAKET EXECUTOR: INSIDE FORMAT EXECSCRIPT METHOD")
-        return PYTHON_EXEC_SCRIPT.format(
-            func_filename=func_filename,
-            s3_bucket_name=self.s3_bucket_name,
-            result_filename=result_filename,
-            docker_working_dir=docker_working_dir,
-        )
-
-    def _format_dockerfile(self, exec_script_filename: str, docker_working_dir: str) -> str:
-        """Create a Dockerfile which wraps an executable Python task.
-
-        Args:
-            exec_script_filename: Name of the executable Python script.
-            docker_working_dir: Name of the working directory in the container.
-
-        Returns:
-            String object containing a Dockerfile.
-        """
-
-        app_log.debug("AWS BRAKET EXECUTOR: INSIDE FORMAT DOCKERFILE METHOD")
-        return DOCKER_SCRIPT.format(
-            func_basename=os.path.basename(exec_script_filename),
-            docker_working_dir=docker_working_dir,
-        )
-
     def _package_and_upload(
         self,
         function: TransportableObject,
         image_tag: str,
-        task_results_dir: str,
-        result_filename: str,
         args: List,
         kwargs: Dict,
     ) -> str:
@@ -364,14 +317,11 @@ class BraketExecutor(AWSExecutor):
             args: Positional arguments consumed by the task.
             kwargs: Keyword arguments consumed by the task.
 
-        Returns:
-            ecr_repo_uri: URI of the repository where the image was uploaded.
         """
         app_log.debug("_package_and_upload")
         app_log.debug(self.s3_bucket_name)
 
         func_filename = f"func-{image_tag}.pkl"
-        docker_working_dir = "/opt/ml/code"
 
         with tempfile.NamedTemporaryFile(dir=self.cache_dir) as function_file:
             # Write serialized function to file
@@ -381,73 +331,6 @@ class BraketExecutor(AWSExecutor):
             # Upload pickled function to S3
             s3 = boto3.Session(**self.boto_session_options()).client("s3")
             s3.upload_file(function_file.name, self.s3_bucket_name, func_filename)
-
-        with tempfile.NamedTemporaryFile(
-            dir=self.cache_dir, mode="w", suffix=".py"
-        ) as exec_script_file, tempfile.NamedTemporaryFile(
-            dir=self.cache_dir, mode="w"
-        ) as dockerfile_file:
-            # Write execution script to file
-            exec_script = self._format_exec_script(
-                func_filename,
-                result_filename,
-                docker_working_dir,
-            )
-            exec_script_file.write(exec_script)
-            exec_script_file.flush()
-
-            # Write Dockerfile to file
-            app_log.debug("Write Dockerfile to file")
-            dockerfile = self._format_dockerfile(exec_script_file.name, docker_working_dir)
-            app_log.debug(dockerfile)
-            dockerfile_file.write(dockerfile)
-            dockerfile_file.flush()
-
-            # Build the Docker image
-            app_log.debug("Build the Docker image")
-            docker_client = docker.from_env()
-            image, build_log = docker_client.images.build(
-                path=self.cache_dir,
-                dockerfile=dockerfile_file.name,
-                platform="linux/amd64",
-            )
-            app_log.debug("AWS BRAKET EXECUTOR: DOCKER BUILD SUCCESS")
-            app_log.debug(f"image ID {image.id}")
-            for line in build_log:
-                app_log.debug(pprint(line))
-
-        ecr_username = "AWS"
-        ecr_password, ecr_registry, ecr_repo_uri = self._get_ecr_info(image_tag)
-        app_log.debug("AWS BRAKET EXECUTOR: ECR INFO RETRIEVAL SUCCESS")
-        login_status = docker_client.login(
-            username=ecr_username, password=ecr_password, registry=ecr_registry
-        )
-        if not login_status["IdentityToken"] and login_status["Status"] == "Login Succeeded":
-            app_log.debug("AWS BRAKET EXECUTOR: DOCKER CLIENT LOGIN SUCCESS")
-        else:
-            raise BraketExecutorDockerException(login_status["Status"], self.ecr_repo_name)
-
-        # Tag the image
-        image.tag(ecr_repo_uri, tag=image_tag)
-        app_log.debug("AWS BRAKET EXECUTOR: IMAGE TAG SUCCESS")
-        # Push to ECR
-        response = docker_client.images.push(ecr_repo_uri, tag=image_tag)
-        statuses = []
-        for status in response.split("\r"):
-            try:
-                status = json.loads(status)
-            except:
-                break
-            if "error" in status.keys():
-                statuses.append("error")
-                raise BraketExecutorDockerException(status["error"], self.ecr_repo_name)
-            elif "status" in status.keys():
-                statuses.append(status["status"])
-            else:
-                statuses.append(list(status.keys())[0])
-        if "error" not in statuses:
-            app_log.debug(f"AWS BRAKET EXECUTOR: DOCKER IMAGE PUSH SUCCESS {response}")
-        return ecr_repo_uri
 
     async def get_status(self, braket, job_arn: str) -> str:
         """Query the status of a previously submitted Braket hybrid job.
