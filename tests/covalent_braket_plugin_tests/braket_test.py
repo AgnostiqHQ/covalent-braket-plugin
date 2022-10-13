@@ -29,7 +29,6 @@ import cloudpickle
 import pytest
 
 from covalent_braket_plugin.braket import BraketExecutor
-from covalent_braket_plugin.scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 
 MOCK_CREDENTIALS = "mock_credentials"
 MOCK_PROFILE = "mock_profile"
@@ -106,30 +105,6 @@ async def test_run(braket_executor, mocker):
     query_result_mock.assert_called_once()
 
 
-def test_format_exec_script(braket_executor):
-    """Test method that constructs the executable tasks-execution Python script."""
-    kwargs = {
-        "func_filename": "mock_function_filename",
-        "result_filename": "mock_result_filename",
-        "docker_working_dir": "mock_docker_working_dir",
-    }
-    exec_script = braket_executor._format_exec_script(**kwargs)
-    assert exec_script == PYTHON_EXEC_SCRIPT.format(
-        s3_bucket_name=braket_executor.s3_bucket_name, **kwargs
-    )
-
-
-def test_format_dockerfile(braket_executor):
-    """Test method that constructs the dockerfile."""
-    docker_script = braket_executor._format_dockerfile(
-        exec_script_filename="root/mock_exec_script_filename",
-        docker_working_dir="mock_docker_working_dir",
-    )
-    assert docker_script == DOCKER_SCRIPT.format(
-        func_basename="mock_exec_script_filename", docker_working_dir="mock_docker_working_dir"
-    )
-
-
 def test_package_and_upload(braket_executor, mocker):
     class MockClient:
         def upload_file(self, filename, bucket_name, func_filename):
@@ -137,16 +112,7 @@ def test_package_and_upload(braket_executor, mocker):
 
     """Test the package and upload method."""
     boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
-    format_exec_script_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._format_exec_script", return_value=""
-    )
-    format_dockerfile_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._format_dockerfile", return_value=""
-    )
-    get_ecr_info_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._get_ecr_info",
-        return_value=("", "", ""),
-    )
+
     mocker.patch("covalent_braket_plugin.braket.shutil.copyfile")
     mm = MagicMock()
     tag_mock = MagicMock()
@@ -163,9 +129,6 @@ def test_package_and_upload(braket_executor, mocker):
         {},
     )
     boto3_mock.Session().client().upload_file.assert_called_once()
-    format_exec_script_mock.assert_called_once()
-    format_dockerfile_mock.assert_called_once()
-    get_ecr_info_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
