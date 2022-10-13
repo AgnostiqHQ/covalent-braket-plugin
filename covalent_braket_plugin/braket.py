@@ -161,12 +161,6 @@ class BraketExecutor(AWSExecutor):
         account = submit_metadata["account"]
 
         func_filename = f"func-{image_tag}.pkl"
-
-        app_log.debug(f"Using ecr repo uri: {ECR_REPO_URI}")
-        app_log.debug(f"Using func_filename: {func_filename}")
-        app_log.debug(f"Using result_filename: {result_filename}")
-        app_log.debug(f"Using s3_bucket_name: {self.s3_bucket_name}")
-
         args = {
             "hyperParameters": {
                 "COVALENT_TASK_FUNC_FILENAME": func_filename,
