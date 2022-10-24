@@ -42,7 +42,9 @@ from covalent._shared_files.logger import app_log
 from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
-ECR_REPO_URI = "public.ecr.aws/covalent/covalent-braket-executor:latest"
+ECR_REPO_URI = (
+    "927766187775.dkr.ecr.us-east-1.amazonaws.com/amazon-braket-ecr-repo-alejandro-test:latest"
+)
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
@@ -60,20 +62,6 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
 }
 
 executor_plugin_name = "BraketExecutor"
-
-
-class BraketExecutorDockerException(Exception):
-    def __init__(self, status, repo):
-        self.message = (
-            "There was an error uploading the Docker image to ECR.\n"
-            + f"Check that the repo {repo} exists.\n"
-            + "This may also be resolved by removing ~/.docker/config.json and trying your dispatch again.\n"
-            + "For more information, see\n"
-            + "https://stackoverflow.com/a/55103262/5513030\n"
-            + "https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html\n"
-            + status
-        )
-        super().__init__(self.message)
 
 
 class BraketExecutor(AWSExecutor):
@@ -123,6 +111,11 @@ class BraketExecutor(AWSExecutor):
         self.classical_device = classical_device or get_config("executors.braket.classical_device")
         self.storage = storage or get_config("executors.braket.storage")
 
+    async def _execute_partial_in_threadpool(self, partial_func):
+        loop = asyncio.get_running_loop()
+        future = await loop.run_in_executor(None, partial_func)
+        return future
+
     async def _upload_task(
         self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict
     ):
@@ -130,18 +123,19 @@ class BraketExecutor(AWSExecutor):
         Abstract method that uploads the pickled function to the remote cache.
         """
         image_tag = upload_metadata["image_tag"]
+        func_filename = f"func-{image_tag}.pkl"
 
-        loop = asyncio.get_running_loop()
+        s3 = boto3.Session(**self.boto_session_options()).client("s3")
 
-        fut = loop.run_in_executor(
-            None,
-            self._package_and_upload,
-            function,
-            image_tag,
-            args,
-            kwargs,
-        )
-        return await fut
+        with tempfile.NamedTemporaryFile(dir=self.cache_dir) as function_file:
+            # Write serialized function to file
+            pickle.dump((function, args, kwargs), function_file)
+            function_file.flush()
+
+            # Upload pickled function to S3
+            await self._execute_partial_in_threadpool(
+                partial(s3.upload_file, function_file.name, self.s3_bucket_name, func_filename)
+            )
 
     async def submit_task(self, submit_metadata: Dict) -> Any:
         """
@@ -161,6 +155,7 @@ class BraketExecutor(AWSExecutor):
         account = submit_metadata["account"]
 
         func_filename = f"func-{image_tag}.pkl"
+
         args = {
             "hyperParameters": {
                 "COVALENT_TASK_FUNC_FILENAME": func_filename,
@@ -192,10 +187,11 @@ class BraketExecutor(AWSExecutor):
             },
         }
 
-        app_log.debug("Using job args:")
-        app_log.debug(args)
         try:
-            job = braket.create_job(**args)
+            app_log.debug("Submitting Braket Job:")
+            app_log.debug(args)
+
+            job = await self._execute_partial_in_threadpool(partial(braket.create_job, **args))
 
         except botocore.exceptions.ClientError as error:
             app_log.debug(error.response)
@@ -210,8 +206,18 @@ class BraketExecutor(AWSExecutor):
         """
         braket = boto3.Session(**self.boto_session_options()).client("braket")
         job_arn = poll_metadata["job_arn"]
-        loop = asyncio.get_running_loop()
-        await self._poll_braket_job(braket, job_arn)
+
+        status = await self.get_status(braket, job_arn)
+
+        while status not in ["COMPLETED", "FAILED", "CANCELLED"]:
+            await asyncio.sleep(self.poll_freq)
+            status = await self.get_status(braket, job_arn)
+
+        if status == "FAILED":
+            get_job_callable = partial(braket.get_job, jobArn=job_arn)
+            job = await self._execute_partial_in_threadpool(get_job_callable)
+            failure_reason = job["failureReason"]
+            raise Exception(failure_reason)
 
     async def query_result(self, query_metadata: Dict) -> Any:
         """
@@ -294,38 +300,6 @@ class BraketExecutor(AWSExecutor):
 
         return output
 
-    def _package_and_upload(
-        self,
-        function: TransportableObject,
-        image_tag: str,
-        args: List,
-        kwargs: Dict,
-    ) -> str:
-        """Package a task using Docker and upload it to AWS ECR.
-
-        Args:
-            function: A callable Python function.
-            image_tag: Tag used to identify the Docker image.
-            task_results_dir: Local directory where task results are stored.
-            result_filename: Name of the pickled result.
-            args: Positional arguments consumed by the task.
-            kwargs: Keyword arguments consumed by the task.
-
-        """
-        app_log.debug("_package_and_upload")
-        app_log.debug(self.s3_bucket_name)
-
-        func_filename = f"func-{image_tag}.pkl"
-
-        with tempfile.NamedTemporaryFile(dir=self.cache_dir) as function_file:
-            # Write serialized function to file
-            pickle.dump((function, args, kwargs), function_file)
-            function_file.flush()
-
-            # Upload pickled function to S3
-            s3 = boto3.Session(**self.boto_session_options()).client("s3")
-            s3.upload_file(function_file.name, self.s3_bucket_name, func_filename)
-
     async def get_status(self, braket, job_arn: str) -> str:
         """Query the status of a previously submitted Braket hybrid job.
 
@@ -343,30 +317,6 @@ class BraketExecutor(AWSExecutor):
         status = job["status"]
 
         return status
-
-    async def _poll_braket_job(self, braket, job_arn: str) -> None:
-        """Poll a Braket hybrid job until completion.
-
-        Args:
-            braket: Braket client object.
-            job_arn: ARN used to identify a Braket hybrid job.
-
-        Returns:
-            None
-        """
-
-        status = await self.get_status(braket, job_arn)
-
-        loop = asyncio.get_running_loop()
-        while status not in ["COMPLETED", "FAILED", "CANCELLED"]:
-            await asyncio.sleep(self.poll_freq)
-            status = await self.get_status(braket, job_arn)
-
-        if status == "FAILED":
-            get_job_callable = partial(braket.get_job, jobArn=job_arn)
-            job = await loop.run_in_executor(None, get_job_callable)
-            failure_reason = job["failureReason"]
-            raise Exception(failure_reason)
 
     def _query_result(
         self, result_filename: str, task_results_dir: str, job_arn: str, image_tag: str
@@ -388,13 +338,13 @@ class BraketExecutor(AWSExecutor):
         local_result_filename = os.path.join(task_results_dir, result_filename)
 
         s3 = boto3.Session(**self.boto_session_options()).client("s3")
+        logs = boto3.Session(**self.boto_session_options()).client("logs")
+
         s3.download_file(self.s3_bucket_name, result_filename, local_result_filename)
 
         with open(local_result_filename, "rb") as f:
             result = pickle.load(f)
         os.remove(local_result_filename)
-
-        logs = boto3.Session(**self.boto_session_options()).client("logs")
 
         log_group_name = "/aws/braket/jobs"
         log_stream_prefix = f"covalent-{image_tag}"
