@@ -94,10 +94,6 @@ defined in an IAM Role (called `"covalent-braket-iam-role"` in this
 example). The [AWS
 documentation has more information about managing Braket
 access](https://docs.aws.amazon.com/braket/latest/developerguide/braket-manage-access.html).
-In addition, since tasks are [packaged in
-containers](https://docs.aws.amazon.com/braket/latest/developerguide/braket-jobs-byoc.html)
-and shipped to ECR, the Docker daemon will need to be installed
-locally.
 
 ## Overview of Configuration
 
@@ -107,18 +103,9 @@ for how to configure this executor.
 
 ## Required Cloud Resources
 
-The following resources will need to be configured on AWS and passed
-to the `BraketExecutor` constructor.
+In order to run your workflows with covalent there are a few notable resources that need to be provisioned first.
 
-|Resource|Config Name|Description|
-|---|---|---|
-|IAM Role|`braket_job_execution_role_name`|The IAM role that Braket assumes during execution of your tasks|
-|S3 Bucket|`s3_bucket_name`|Name of an AWS S3 bucket for storing temporary files|
-|ECR Repo|`ecr_repo_name`|Name of an AWS ECR registry for hosting the job container|
-
-Please consult the
-[RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html)
-for more details on provisioning these resources.
+For more information regarding which cloud resources need to be provisioned visit our read the docs [RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html) guide for this plugin.
 
 ## Release Notes
 
