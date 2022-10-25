@@ -36,7 +36,6 @@ from typing import Any, Callable, Dict, List, Tuple
 import boto3
 import botocore
 import cloudpickle as pickle
-import docker
 from covalent._shared_files.config import get_config
 from covalent._shared_files.logger import app_log
 from covalent._workflow.transport import TransportableObject
@@ -115,6 +114,13 @@ class BraketExecutor(AWSExecutor):
         loop = asyncio.get_running_loop()
         future = await loop.run_in_executor(None, partial_func)
         return future
+
+    def load_pickle(self, filename, remove_file):
+        with open(filename, "rb") as f:
+            result = pickle.load(f)
+        if remove_file:
+            os.remove(filename)
+        return result
 
     async def _upload_task(
         self, function: Callable, args: List, kwargs: Dict, upload_metadata: Dict
@@ -214,8 +220,9 @@ class BraketExecutor(AWSExecutor):
             status = await self.get_status(braket, job_arn)
 
         if status == "FAILED":
-            get_job_callable = partial(braket.get_job, jobArn=job_arn)
-            job = await self._execute_partial_in_threadpool(get_job_callable)
+            job = await self._execute_partial_in_threadpool(
+                partial(braket.get_job, jobArn=job_arn)
+            )
             failure_reason = job["failureReason"]
             raise Exception(failure_reason)
 
@@ -224,22 +231,52 @@ class BraketExecutor(AWSExecutor):
         Abstract method that retrieves the pickled result from the remote cache.
         """
 
+        s3 = boto3.Session(**self.boto_session_options()).client("s3")
+        logs = boto3.Session(**self.boto_session_options()).client("logs")
+
         result_filename = query_metadata["result_filename"]
         task_results_dir = query_metadata["task_results_dir"]
-        job_arn = query_metadata["job_arn"]
         image_tag = query_metadata["image_tag"]
 
-        loop = asyncio.get_running_loop()
-        fut = loop.run_in_executor(
-            None,
-            self._query_result,
-            result_filename,
-            task_results_dir,
-            job_arn,
-            image_tag,
+        local_result_filename = os.path.join(task_results_dir, result_filename)
+
+        await self._execute_partial_in_threadpool(
+            partial(s3.download_file, self.s3_bucket_name, result_filename, local_result_filename)
         )
-        output, stdout, stderr = await fut
-        return output, stdout, stderr
+
+        result = await self._execute_partial_in_threadpool(
+            partial(self.load_pickle, local_result_filename, True)
+        )
+
+        log_group_name = "/aws/braket/jobs"
+        log_stream_prefix = f"covalent-{image_tag}"
+
+        log_stream_describe = await self._execute_partial_in_threadpool(
+            partial(
+                logs.describe_log_streams,
+                logGroupName=log_group_name,
+                logStreamNamePrefix=log_stream_prefix,
+            )
+        )
+        log_stream_name = log_stream_describe["logStreams"][0]["logStreamName"]
+
+        # TODO: This should be paginated, but the command doesn't support boto3 pagination
+        # Up to 10000 log events can be returned from a single call to get_log_events()
+        all_log_events = await self._execute_partial_in_threadpool(
+            partial(
+                logs.get_log_events,
+                logGroupName=log_group_name,
+                logStreamName=log_stream_name,
+            )
+        )
+        events = all_log_events["events"]
+
+        log_events = ""
+        for event in events:
+            log_events += event["message"] + "\n"
+
+        # output, stdout, stderr
+        return result, log_events, ""
 
     async def cancel(self) -> bool:
         """
@@ -257,8 +294,11 @@ class BraketExecutor(AWSExecutor):
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
 
+        app_log.debug("Validating credentials...")
         # AWS Account Retrieval
-        identity = self._validate_credentials(raise_exception=True)
+        identity = await self._execute_partial_in_threadpool(
+            partial(self._validate_credentials, raise_exception=True)
+        )
         account = identity.get("Account")
 
         # TODO: Move this to BaseExecutor
@@ -310,57 +350,8 @@ class BraketExecutor(AWSExecutor):
         Returns:
             status: String describing the job status.
         """
-
-        loop = asyncio.get_running_loop()
-        get_job_callable = partial(braket.get_job, jobArn=job_arn)
-        job = await loop.run_in_executor(None, get_job_callable)
+        app_log.debug(f"Getting Braket Job {job_arn} status...")
+        job = await self._execute_partial_in_threadpool(partial(braket.get_job, jobArn=job_arn))
         status = job["status"]
-
+        app_log.debug(f"Braket Job {job_arn} Status: {status}")
         return status
-
-    def _query_result(
-        self, result_filename: str, task_results_dir: str, job_arn: str, image_tag: str
-    ) -> Tuple[Any, str, str]:
-        """Query and retrieve a completed job's result.
-
-        Args:
-            result_filename: Name of the pickled result file.
-            task_results_dir: Local directory where task results are stored.
-            job_arn: Identifier used to identify a Braket hybrid job.
-            image_tag: Tag used to identify the log file.
-
-        Returns:
-            result: The task's result, as a Python object.
-            logs: The stdout and stderr streams corresponding to the task.
-            empty_string: A placeholder empty string.
-        """
-
-        local_result_filename = os.path.join(task_results_dir, result_filename)
-
-        s3 = boto3.Session(**self.boto_session_options()).client("s3")
-        logs = boto3.Session(**self.boto_session_options()).client("logs")
-
-        s3.download_file(self.s3_bucket_name, result_filename, local_result_filename)
-
-        with open(local_result_filename, "rb") as f:
-            result = pickle.load(f)
-        os.remove(local_result_filename)
-
-        log_group_name = "/aws/braket/jobs"
-        log_stream_prefix = f"covalent-{image_tag}"
-        log_stream_name = logs.describe_log_streams(
-            logGroupName=log_group_name, logStreamNamePrefix=log_stream_prefix
-        )["logStreams"][0]["logStreamName"]
-
-        # TODO: This should be paginated, but the command doesn't support boto3 pagination
-        # Up to 10000 log events can be returned from a single call to get_log_events()
-        events = logs.get_log_events(
-            logGroupName=log_group_name,
-            logStreamName=log_stream_name,
-        )["events"]
-
-        log_events = ""
-        for event in events:
-            log_events += event["message"] + "\n"
-
-        return result, log_events, ""
