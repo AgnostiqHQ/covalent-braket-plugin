@@ -70,12 +70,8 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install --no-cache-dir -r requirements.txt
           pip install --no-cache-dir -r tests/requirements.txt
       
-      - name: Install Covalent
-        run: pip install covalent --pre
-               
       - name: Build distribution
         run: python setup.py sdist
 

@@ -20,21 +20,20 @@
 
 """Unit tests for AWS batch executor."""
 
+import asyncio
 import os
 from base64 import b64encode
 from typing import Dict, List
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import cloudpickle
 import pytest
 
 from covalent_braket_plugin.braket import BraketExecutor
-from covalent_braket_plugin.scripts import DOCKER_SCRIPT, PYTHON_EXEC_SCRIPT
 
 MOCK_CREDENTIALS = "mock_credentials"
 MOCK_PROFILE = "mock_profile"
 MOCK_S3_BUCKET_NAME = "mock_s3_bucket_name"
-MOCK_ECR_REPO_NAME = "mock_ecr_repo_name"
 MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME = "mock_role_name"
 MOCK_QUANTUM_DEVICE = "mock_device"
 MOCK_CLASSICAL_DEVICE = "mock_device"
@@ -51,7 +50,6 @@ def braket_executor(mocker):
         credentials=MOCK_CREDENTIALS,
         profile=MOCK_PROFILE,
         s3_bucket_name=MOCK_S3_BUCKET_NAME,
-        ecr_repo_name=MOCK_ECR_REPO_NAME,
         braket_job_execution_role_name=MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME,
         quantum_device=MOCK_QUANTUM_DEVICE,
         classical_device=MOCK_CLASSICAL_DEVICE,
@@ -66,7 +64,6 @@ def test_executor_init_default_values(braket_executor):
     assert braket_executor.credentials_file == MOCK_CREDENTIALS
     assert braket_executor.profile == MOCK_PROFILE
     assert braket_executor.s3_bucket_name == MOCK_S3_BUCKET_NAME
-    assert braket_executor.ecr_repo_name == MOCK_ECR_REPO_NAME
     assert braket_executor.execution_role == MOCK_BRAKET_JOB_EXECUTION_ROLE_NAME
     assert braket_executor.quantum_device == MOCK_QUANTUM_DEVICE
     assert braket_executor.classical_device == MOCK_CLASSICAL_DEVICE
@@ -79,96 +76,71 @@ def test_executor_init_default_values(braket_executor):
 async def test_run(braket_executor, mocker):
     """Test the run method."""
 
+    asyncmock = AsyncMock()
+
     def mock_func(x):
         return x
 
-    mm = MagicMock()
-    mocker.patch("covalent_braket_plugin.braket.boto3.Session", return_value=mm)
-    package_and_upload_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._package_and_upload"
-    )
-    poll_braket_job_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._poll_braket_job"
-    )
-    query_result_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._query_result", return_value=(1, "Hi", "")
-    )
     task_metadata = {"dispatch_id": "mock_dispatch_id", "node_id": 1, "results_dir": "/tmp"}
+
+    mocker.patch("covalent_braket_plugin.braket.boto3")
+    validate_creds_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._validate_credentials"
+    )
+    upload_task_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._upload_task", return_value=asyncmock
+    )
+    submit_task_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor.submit_task", return_value=asyncmock
+    )
+    poll_task_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor._poll_task", return_value=asyncmock
+    )
+    query_result_async_mock = AsyncMock()
+    query_result_mock = mocker.patch(
+        "covalent_braket_plugin.braket.BraketExecutor.query_result",
+        return_value=query_result_async_mock,
+    )
+    query_result_mock.return_value = "result", "", ""
+
     await braket_executor.run(
         function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata
     )
-    package_and_upload_mock.assert_called_once_with(
-        mock_func,
-        "mock_dispatch_id-1",
-        "/tmp/mock_dispatch_id",
-        "result-mock_dispatch_id-1.pkl",
-        [],
-        {"x": 1},
+
+    validate_creds_mock.assert_called_once()
+    upload_task_mock.assert_called_once_with(
+        mock_func, [], {"x": 1}, {"image_tag": "mock_dispatch_id-1"}
     )
-    poll_braket_job_mock.assert_called_once()
-    query_result_mock.assert_called_once()
+    submit_task_mock.assert_called_once()
 
 
-def test_format_exec_script(braket_executor):
-    """Test method that constructs the executable tasks-execution Python script."""
-    kwargs = {
-        "func_filename": "mock_function_filename",
-        "result_filename": "mock_result_filename",
-        "docker_working_dir": "mock_docker_working_dir",
+@pytest.mark.asyncio
+async def test_submit_task(braket_executor, mocker):
+    boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
+
+    submit_metadata = {
+        "image_tag": "mock-image-tag",
+        "result_filename": "mock_filename.pkl",
+        "account": 122388,
     }
-    exec_script = braket_executor._format_exec_script(**kwargs)
-    assert exec_script == PYTHON_EXEC_SCRIPT.format(
-        s3_bucket_name=braket_executor.s3_bucket_name, **kwargs
-    )
+    await braket_executor.submit_task(submit_metadata)
+
+    boto3_mock.Session().client().create_job.assert_called_once()
 
 
-def test_format_dockerfile(braket_executor):
-    """Test method that constructs the dockerfile."""
-    docker_script = braket_executor._format_dockerfile(
-        exec_script_filename="root/mock_exec_script_filename",
-        docker_working_dir="mock_docker_working_dir",
-    )
-    assert docker_script == DOCKER_SCRIPT.format(
-        func_basename="mock_exec_script_filename", docker_working_dir="mock_docker_working_dir"
-    )
-
-
-def test_package_and_upload(braket_executor, mocker):
-    class MockClient:
-        def upload_file(self, filename, bucket_name, func_filename):
-            return filename
+@pytest.mark.asyncio
+async def test_upload_task(braket_executor, mocker):
 
     """Test the package and upload method."""
     boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
-    format_exec_script_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._format_exec_script", return_value=""
-    )
-    format_dockerfile_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._format_dockerfile", return_value=""
-    )
-    get_ecr_info_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor._get_ecr_info",
-        return_value=("", "", ""),
-    )
-    mocker.patch("covalent_braket_plugin.braket.shutil.copyfile")
-    mm = MagicMock()
-    tag_mock = MagicMock()
-    mm.images.build.return_value = tag_mock, "logs"
-    mm.login.return_value = {"IdentityToken": None, "Status": "Login Succeeded"}
-    mocker.patch("covalent_braket_plugin.braket.docker.from_env", return_value=mm)
 
-    braket_executor._package_and_upload(
+    await braket_executor._upload_task(
         "mock_transportable_object",
-        "mock_image_tag",
-        "mock_task_results_dir",
-        "mock_result_filename",
         [],
         {},
+        {"image_tag": "mock_image_tag"},
     )
     boto3_mock.Session().client().upload_file.assert_called_once()
-    format_exec_script_mock.assert_called_once()
-    format_dockerfile_mock.assert_called_once()
-    get_ecr_info_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -192,22 +164,21 @@ async def test_get_status(braket_executor):
 @pytest.mark.asyncio
 async def test_poll_braket_job(braket_executor, mocker):
     """Test the method to poll the batch job."""
+
+    async_mock = AsyncMock(side_effect=["QUEUED", "FAILED"])
+    boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
     get_status_mock = mocker.patch(
-        "covalent_braket_plugin.braket.BraketExecutor.get_status",
-        side_effect=[
-            "RUNNING",
-            "SUCCEEDED",
-            "RUNNING",
-            "FAILED",
-        ],
+        "covalent_braket_plugin.braket.BraketExecutor.get_status", side_effect=async_mock
     )
 
+    boto3_mock.Session().client().get_job.return_value = {"failureReason": "error"}
     with pytest.raises(Exception):
-        await braket_executor._poll_braket_job(braket=MagicMock(), job_arn="1")
+        await braket_executor._poll_task({"job_arn": 1})
     get_status_mock.assert_awaited()
 
 
-def test_query_result(braket_executor, mocker):
+@pytest.mark.asyncio
+async def test_query_result(braket_executor, mocker):
     """Test the method to query the results."""
 
     def download_file(filename, bucket_name, func_filename):
@@ -233,7 +204,13 @@ def test_query_result(braket_executor, mocker):
     local_result_filename = os.path.join(task_results_dir, result_filename)
     with open(local_result_filename, "wb") as f:
         cloudpickle.dump("hello world", f)
-    assert braket_executor._query_result(result_filename, task_results_dir, "1", None) == (
+
+    query_metadata = {
+        "result_filename": result_filename,
+        "task_results_dir": task_results_dir,
+        "image_tag": "1",
+    }
+    assert await braket_executor.query_result(query_metadata) == (
         "hello world",
         "mock_logs\n",
         "",
