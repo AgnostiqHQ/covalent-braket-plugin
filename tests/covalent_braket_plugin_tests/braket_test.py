@@ -115,6 +115,20 @@ async def test_run(braket_executor, mocker):
 
 
 @pytest.mark.asyncio
+async def test_submit_task(braket_executor, mocker):
+    boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
+
+    submit_metadata = {
+        "image_tag": "mock-image-tag",
+        "result_filename": "mock_filename.pkl",
+        "account": 122388,
+    }
+    await braket_executor.submit_task(submit_metadata)
+
+    boto3_mock.Session().client().create_job.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_upload_task(braket_executor, mocker):
 
     """Test the package and upload method."""
