@@ -151,7 +151,7 @@ async def test_get_status(braket_executor):
 async def test_poll_braket_job(braket_executor, mocker):
     """Test the method to poll the batch job."""
 
-    async_mock = AsyncMock(return_value="FAILED")
+    async_mock = AsyncMock(side_effect=["QUEUED", "FAILED"])
     boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
     get_status_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor.get_status", side_effect=async_mock
