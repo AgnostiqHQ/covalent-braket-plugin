@@ -21,16 +21,11 @@
 """AWS Braket Hybrid Jobs executor plugin for the Covalent dispatcher."""
 
 import asyncio
-import base64
-import json
 import os
-import shutil
 import sys
 import tempfile
-import time
 from functools import partial
 from pathlib import Path
-from pprint import pprint
 from typing import Any, Callable, Dict, List, Tuple
 
 import boto3
@@ -41,23 +36,20 @@ from covalent._shared_files.logger import app_log
 from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
-ECR_REPO_URI = (
-    "927766187775.dkr.ecr.us-east-1.amazonaws.com/amazon-braket-ecr-repo-alejandro-test:latest"
-)
-
 _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ["HOME"], ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
     or "amazon-braket-covalent-job-resources",
+    "ecr_image_uri": "",
     "braket_job_execution_role_name": "CovalentBraketJobsExecutionRole",
     "quantum_device": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     "classical_device": "ml.m5.large",
     "storage": 30,
     "time_limit": 300,
     "cache_dir": "/tmp/covalent",
-    "poll_freq": 30,
+    "poll_freq": 10,
 }
 
 executor_plugin_name = "BraketExecutor"
@@ -68,6 +60,7 @@ class BraketExecutor(AWSExecutor):
 
     def __init__(
         self,
+        ecr_image_uri: str = None,
         s3_bucket_name: str = None,
         braket_job_execution_role_name: str = None,
         classical_device: str = None,
@@ -109,6 +102,7 @@ class BraketExecutor(AWSExecutor):
         self.quantum_device = quantum_device or get_config("executors.braket.quantum_device")
         self.classical_device = classical_device or get_config("executors.braket.classical_device")
         self.storage = storage or get_config("executors.braket.storage")
+        self.ecr_image_uri = ecr_image_uri or get_config("executors.braket.ecr_image_uri")
 
     async def _execute_partial_in_threadpool(self, partial_func):
         loop = asyncio.get_running_loop()
@@ -157,11 +151,11 @@ class BraketExecutor(AWSExecutor):
 
         image_tag = submit_metadata["image_tag"]
         result_filename = submit_metadata["result_filename"]
-        image_tag = submit_metadata["image_tag"]
         account = submit_metadata["account"]
 
         func_filename = f"func-{image_tag}.pkl"
 
+        app_log.debug(f"Using ECR Image URI: {self.ecr_image_uri}")
         args = {
             "hyperParameters": {
                 "COVALENT_TASK_FUNC_FILENAME": func_filename,
@@ -170,7 +164,7 @@ class BraketExecutor(AWSExecutor):
             },
             "algorithmSpecification": {
                 "containerImage": {
-                    "uri": ECR_REPO_URI,
+                    "uri": self.ecr_image_uri,
                 },
             },
             "checkpointConfig": {
