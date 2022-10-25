@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.8.0] - 2022-10-25
+
 ### Changed
 
 - Updated executor to use pre-built braket executor base image
