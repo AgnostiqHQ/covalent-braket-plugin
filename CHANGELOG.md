@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Documentation
+
+- Update README to include reference to new `ecr_image_uri` key
+
 ## [0.8.0] - 2022-10-25
 
 ### Changed
