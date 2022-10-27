@@ -35,14 +35,14 @@ import os
 credentials_file = "~/.aws/credentials"
 profile = "default"
 s3_bucket_name = "braket_s3_bucket"
-ecr_repo_name = "braket_ecr_repo"
+ecr_image_uri = "111223344.dkr.ecr.us-east-1.amazonaws.com/amazon-braket-ecr-repo:latest"
 iam_role_name = "covalent-braket-iam-role"
 
 ex = BraketExecutor(
-    credentials=credentials_file,
     profile=profile,
+    credentials=credentials_file,
     s3_bucket_name=s3_bucket_name,
-    ecr_repo_name=ecr_repo_name,
+    ecr_image_uri=ecr_image_uri,
     braket_job_execution_role_name=iam_role_name,
     quantum_device="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     classical_device="ml.m5.large",
@@ -103,7 +103,7 @@ for how to configure this executor.
 
 ## Required Cloud Resources
 
-In order to run your workflows with covalent there are a few notable resources that need to be provisioned first.
+In order to run your workflows with covalent there are a few notable resources that need to be provisioned first. Particularly an S3 bucket must be created, an IAM role with the `AmazonBraketFullAccess` policy, and a private ECR repo with an uploaded image for the tasks to use.
 
 For more information regarding which cloud resources need to be provisioned visit our read the docs [RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html) guide for this plugin.
 
