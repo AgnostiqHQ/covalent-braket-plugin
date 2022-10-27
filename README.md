@@ -103,7 +103,7 @@ for how to configure this executor.
 
 ## Required Cloud Resources
 
-In order to run your workflows with covalent there are a few notable resources that need to be provisioned first. Particularly an S3 bucket must be created, an IAM role with the `AmazonBraketFullAccess` policy, and a private ECR repo with an uploaded image for the tasks to use. 
+In order to run your workflows with covalent there are a few notable resources that need to be provisioned first. Particularly an S3 bucket must be created, an IAM role with the `AmazonBraketFullAccess` policy, and a private ECR repo with an uploaded image for the tasks to use.
 
 For more information regarding which cloud resources need to be provisioned visit our read the docs [RTD](https://covalent.readthedocs.io/en/latest/api/executors/awsbraket.html) guide for this plugin.
 
