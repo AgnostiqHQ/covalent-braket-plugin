@@ -37,9 +37,9 @@ from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
-    "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
-    or os.path.join(os.environ["HOME"], ".aws/credentials"),
-    "profile": os.environ.get("AWS_PROFILE") or "default",
+    "credentials": "",
+    "profile": "",
+    "region": "",
     "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
     or "amazon-braket-covalent-job-resources",
     "ecr_image_uri": "",
@@ -75,7 +75,7 @@ class BraketExecutor(AWSExecutor):
         **kwargs,
     ):
 
-        # we exclude region from get_config as we want AWSExecutor to properly treat cases where it's not explicitly defined.
+        region = region or get_config("executors.braket.region")
         credentials = credentials or get_config("executors.braket.credentials")
         profile = profile or get_config("executors.braket.profile")
         s3_bucket_name = s3_bucket_name or get_config("executors.braket.s3_bucket_name")
