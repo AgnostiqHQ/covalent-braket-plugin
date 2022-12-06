@@ -4,12 +4,10 @@ import covalent as ct
 import pytest
 from braket.tracking import Tracker
 
-from tests.functional_tests.fixtures.executor import executor
-
 
 @pytest.mark.functional_tests
 def test_basic_quantum_workflow():
-    @ct.electron(executor=executor)
+    @ct.electron(executor="braket")
     def my_hybrid_task(num_qubits: int):
         import pennylane as qml
 
