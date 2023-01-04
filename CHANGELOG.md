@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Operations
+
+### Added
+
+- Adding `docker.yml` workflow to build and release braket executor docker image
+
+### Changed
+
+- Removed explicit `covalent` installation in the Docker and use base `covalent` image from public registry
+- Invoke `docker.yml` from `release.yml` via a workflow call
+
 ## [0.15.0] - 2022-12-15
 
 ### Changed
