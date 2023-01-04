@@ -185,3 +185,13 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: twine upload dist/*
+
+  docker-prerelease:
+    needs: [pypi, github]
+    if: >
+      github.ref == 'refs/heads/develop'
+      && github.event == 'workflow_call'
+    uses: AgnostiqHQ/covalent-braket-plugin/.github/workflows/docker.yml@develop
+    secrets: inherit
+    with:
+      prerelease: true
