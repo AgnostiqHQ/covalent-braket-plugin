@@ -105,7 +105,7 @@ jobs:
           platforms: "linux/amd64"
           push: true
           build-args: |
-            COVALENT_BASE_IMAGE: "public.ecr.aws/covalent/covalent:latest"
+            COVALENT_BASE_IMAGE="public.ecr.aws/covalent/covalent:latest"
           tags: |
             "public.ecr.aws/covalent/covalent-braket-executor:latest"
             "public.ecr.aws/covalent/covalent-braket-executor:${{ env.TAG }}"
