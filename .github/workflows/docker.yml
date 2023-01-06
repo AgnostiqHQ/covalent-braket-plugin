@@ -66,13 +66,13 @@ jobs:
           fetch-depth: 0
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@master
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: "linux/amd64"
 
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-actions@master
+        uses: docker/setup-buildx-actions@v2
 
 
       - name: Configure AWS credentials
