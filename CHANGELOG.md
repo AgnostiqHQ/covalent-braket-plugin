@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `typo` in action spelling
+
+## [0.17.1] - 2023-01-06
+
+### Fixed
+
 - Updated version of the `docker` buildx actions
 
 ## [0.17.0] - 2023-01-06
