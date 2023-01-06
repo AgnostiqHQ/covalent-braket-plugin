@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \
   pennylane==0.24.0 \
   sagemaker-training
 
-RUN pip install "covalent>=0.202.0,<1"
+#RUN pip install "covalent>=0.202.0,<1"
 
 WORKDIR /opt/ml/code
 COPY covalent_braket_plugin/exec.py /opt/ml/code
