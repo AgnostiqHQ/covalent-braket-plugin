@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.18.0] - 2023-01-06
+
 ### Changed
 
 - Removed inputs.version from checkout step in docker workflow
