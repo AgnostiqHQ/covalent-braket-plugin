@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Updated version of the `docker` buildx actions
+
 ## [0.17.0] - 2023-01-06
 
 ### Changed
