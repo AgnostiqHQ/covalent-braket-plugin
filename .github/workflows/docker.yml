@@ -23,11 +23,11 @@ name: docker
 on:
   workflow_dispatch:
     inputs:
-      stable_version:
-        description: "Stable version number, e.g. 0.32.3"
+      version:
+        description: "Version number, e.g. 0.32.3"
         type: string
-      test_release:
-        description: "Test the workflow but don't create the release. Uncheck this box to create a release."
+      prerelease:
+        description: "true: Create a prerelease. false: Create a stable release"
         required: true
         type: boolean
         default: true
@@ -50,11 +50,11 @@ jobs:
         uses: actions/checkout@v2
         if: >
           github.event == 'workflow_dispatch'
-          && github.event.inputs.stable_version
+          && github.event.inputs.version
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: "v${{ github.event.inputs.stable_version }}"
+          ref: "v${{ github.event.inputs.version }}"
 
       - name: Checkout default branch (develop)
         uses: actions/checkout@v2
@@ -94,8 +94,7 @@ jobs:
       - name: Build and push pre-release docker image
         if: >
           inputs.prerelease
-          && github.event == 'workflow_call'
-          && !github.events.inputs.stable_version
+          && !github.events.inputs.version
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -113,7 +112,7 @@ jobs:
         if: >
           !inputs.prerelease
           && github.event == 'workflow_dispatch'
-          && github.events.inputs.stable_version
+          && github.events.inputs.version
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
