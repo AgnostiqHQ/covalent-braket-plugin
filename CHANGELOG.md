@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.18.1] - 2023-01-06
+
 ### Fixed
 
 - Fixed docker workflow github event name syntax
