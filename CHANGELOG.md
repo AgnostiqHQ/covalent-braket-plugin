@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.17.3] - 2023-01-06
+
 ### Fixed
 
 - Added id-token write, and permissions for OIDC to push to ECR from role
