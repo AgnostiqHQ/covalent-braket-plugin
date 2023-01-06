@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.17.0] - 2023-01-06
+
 ### Changed
 
 - Updated docker workflow to create manual pre-releases in addition to stable version
