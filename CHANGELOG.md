@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Fixed COVALENT_BASE_IMAGE arg in docker workflow
+
 ## [0.18.1] - 2023-01-06
 
 ### Fixed
