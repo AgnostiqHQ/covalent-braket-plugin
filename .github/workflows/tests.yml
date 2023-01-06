@@ -107,6 +107,9 @@ jobs:
           files: ./coverage.xml
           name: "Plugin Unit Tests"
 
+      - name: Output CWD
+        run: |
+          ls
       - name: Get latest release
         uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
