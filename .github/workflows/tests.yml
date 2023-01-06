@@ -109,7 +109,7 @@ jobs:
 
       - name: Output CWD
         run: |
-          ls
+          ls -lah
       - name: Get latest release
         uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
