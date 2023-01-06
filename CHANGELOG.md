@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.17.2] - 2023-01-06
+
 ### Fixed
 
 - Fixed `typo` in action spelling
