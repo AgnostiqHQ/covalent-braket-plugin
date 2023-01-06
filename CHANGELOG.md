@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Ability to specify covalent version in docker workflow
+
 ## [0.18.3] - 2023-01-06
 
 ### Fixed
