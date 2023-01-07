@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Updated docker workflow to specify pre-release flag as a build arg
+
 ## [0.19.0] - 2023-01-06
 
 ### Changed
