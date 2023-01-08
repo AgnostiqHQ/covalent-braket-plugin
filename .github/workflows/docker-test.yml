@@ -77,7 +77,7 @@ jobs:
           push: true
           build-args: |
             COVALENT_BASE_IMAGE=python:3.8-slim-buster
-            COVALENT_PACKAGE_VERSION='covalent>=0.202.0,<1'
+            COVALENT_PACKAGE_VERSION=covalent>=0.202.0,<1
             PRE_RELEASE=true
           tags: |
             "public.ecr.aws/covalent/covalent-braket-executor:latest"
