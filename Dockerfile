@@ -15,10 +15,12 @@ RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \
   pennylane==0.24.0 \
   sagemaker-training
 
-RUN if [ -z "$PRE_RELEASE" ]; then \
-  pip install $COVALENT_PACKAGE_VERSION; else \
-  pip install --pre $COVALENT_PACKAGE_VERSION; \
-  fi
+# RUN if [ -z "$PRE_RELEASE" ]; then \
+#   pip install $COVALENT_PACKAGE_VERSION; else \
+#   pip install --pre $COVALENT_PACKAGE_VERSION; \
+#   fi
+
+RUN pip install $COVALENT_PACKAGE_VERSION
 
 WORKDIR /opt/ml/code
 COPY covalent_braket_plugin/exec.py /opt/ml/code
