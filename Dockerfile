@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \
 #   pip install --pre $COVALENT_PACKAGE_VERSION; \
 #   fi
 
-RUN pip install $COVALENT_PACKAGE_VERSION
+RUN pip install --pre "$COVALENT_PACKAGE_VERSION"
 
 WORKDIR /opt/ml/code
 COPY covalent_braket_plugin/exec.py /opt/ml/code
