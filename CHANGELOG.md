@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Removed dangling `permissions` block from workflow
+
 ## [0.20.0] - 2023-01-07
 
 ### Changed
