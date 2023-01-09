@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.20.0] - 2023-01-07
+
+### Changed
+
+- Updated docker workflow to specify pre-release flag as a build arg
+
+## [0.19.0] - 2023-01-06
+
+### Changed
+
+- Ability to specify covalent version in docker workflow
+
+## [0.18.3] - 2023-01-06
+
+### Fixed
+
+- Fixed COVALENT_BASE_IMAGE arg in docker workflow quotations
+
+## [0.18.2] - 2023-01-06
+
+### Fixed
+
+- Fixed COVALENT_BASE_IMAGE arg in docker workflow
+
+## [0.18.1] - 2023-01-06
+
+### Fixed
+
+- Fixed docker workflow github event name syntax
+
+## [0.18.0] - 2023-01-06
+
+### Changed
+
+- Removed inputs.version from checkout step in docker workflow
+
+## [0.17.3] - 2023-01-06
+
+### Fixed
+
+- Added id-token write, and permissions for OIDC to push to ECR from role
+
+## [0.17.2] - 2023-01-06
+
 ### Fixed
 
 - Fixed `typo` in action spelling
