@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.20.1] - 2023-01-18
+
 ### Fixed
 
 - Fixed Dockerfile and docker workflow syntax to build pre-release base executor images
