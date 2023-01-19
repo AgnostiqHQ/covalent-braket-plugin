@@ -54,7 +54,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: "v${{ github.event.inputs.stable_version }}"
+          ref: "v${{ inputs.stable_version }}"
 
       - name: Checkout default branch (develop)
         uses: actions/checkout@v2
