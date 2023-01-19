@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Updated docker workflow to allow manual pre-release base executor image release
+- Minor updates for consistency with other docker workflows
+
 ## [0.20.1] - 2023-01-18
 
 ### Fixed
