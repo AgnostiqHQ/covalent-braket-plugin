@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.21.1] - 2023-02-07
+
 ### Fixed
 
 - tests.yml workflow.
