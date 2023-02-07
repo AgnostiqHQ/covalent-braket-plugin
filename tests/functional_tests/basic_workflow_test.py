@@ -2,6 +2,7 @@ import covalent as ct
 import pytest
 
 from covalent_braket_plugin.braket import BraketExecutor
+
 braket_executor = \
     BraketExecutor(
             region='us-east-1',
