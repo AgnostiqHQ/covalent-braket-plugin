@@ -1,8 +1,6 @@
 import covalent as ct
 import pytest
 
-from covalent_braket_plugin.braket import BraketExecutor
-
 
 @pytest.mark.functional_tests
 def test_basic_workflow():
