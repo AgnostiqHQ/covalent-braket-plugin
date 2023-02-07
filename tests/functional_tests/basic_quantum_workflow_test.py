@@ -6,22 +6,10 @@ from braket.tracking import Tracker
 
 from covalent_braket_plugin.braket import BraketExecutor
 
-braket_executor = \
-    BraketExecutor(
-            region='us-east-1',
-            s3_bucket_name='amazon-braket-cova-qa-covalent-svc-bucket',
-            ecr_image_uri='927766187775.dkr.ecr.us-east-1.amazonaws.com/cova-qa-covalent-svc-images:braket',
-            braket_job_execution_role_name='cova-qa-covalent-svc-braket-execution-role',
-            quantum_device='arn:aws:braket:::device/quantum-simulator/amazon/sv1',
-            classical_device='ml.m5.large',
-            storage=30
-        )
-
-deps_pip = ct.DepsPip(packages=["pennylane"])
 
 @pytest.mark.functional_tests
 def test_basic_quantum_workflow():
-    @ct.electron(executor=braket_executor, deps_pip=deps_pip)
+    @ct.electron(executor="braket")
     def my_hybrid_task(num_qubits: int):
         import pennylane as qml
 
@@ -46,7 +34,7 @@ def test_basic_quantum_workflow():
             res = simple_circuit().numpy()
         return res, tracker
 
-    @ct.electron(deps_pip=deps_pip)
+    @ct.electron
     def get_cost(tracker: Tracker):
         return tracker.simulator_tasks_cost()
 
