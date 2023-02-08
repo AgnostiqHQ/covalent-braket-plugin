@@ -130,7 +130,7 @@ jobs:
             git push origin HEAD:main
             release=true
           fi
-          echo $release
+          echo $GITHUB_ENV
 
       # - name: Push to main
       #   id: push
