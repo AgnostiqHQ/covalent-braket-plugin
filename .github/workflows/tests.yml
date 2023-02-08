@@ -129,6 +129,7 @@ jobs:
             cd covalent-braket-plugin
             git push origin HEAD:main
             release=true
+            echo "Checking out git"
           fi
           echo $GITHUB_ENV
 
