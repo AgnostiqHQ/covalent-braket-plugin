@@ -41,7 +41,7 @@ jobs:
           - python:3.10-buster
           - python:3.10-bullseye
           - image: "centos/python-38-centos7"
-            options: "--user root"
+            # options: "--user root"
         experimental: [false]
         include:
           - os: macos-latest
@@ -62,6 +62,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           persist-credentials: false 
+
       - name: Set up Python
         if: matrix.os == 'macos-latest'
         uses: actions/setup-python@v2
