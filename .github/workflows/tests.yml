@@ -126,7 +126,8 @@ jobs:
           if [ "$MASTER_VERSION" = "$VERSION" ] ; then
             echo "$VERSION has been previously released."
           else
-          git branch
+            git config --global --add safe.directory $pwd
+            git branch
             pwd
             echo "Checking out git"
           fi
