@@ -131,7 +131,6 @@ jobs:
             release=true
           fi
           echo $release
-          echo $GITHUB_ENV
 
       # - name: Push to main
       #   id: push
