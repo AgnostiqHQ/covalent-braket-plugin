@@ -117,6 +117,22 @@ jobs:
       - name: check dir
         run: |
           ls -lah
+          MASTER_VERSION="$(echo ${{ steps.get-latest-tag.outputs.tag }} | cut -c2- )"
+          VERSION="$(cat ./VERSION)"
+          release=false
+          if [ "$MASTER_VERSION" = "$VERSION" ] ; then
+            echo "$VERSION has been previously released."
+          else
+            git config user.name "CovalentOpsBot"
+            git config user.email "covalentopsbot@users.noreply.github.com"
+            git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-braket-plugin.git
+            cd covalent-braket-plugin
+            git push origin HEAD:main
+            release=true
+          fi
+          echo "RELEASE=$release" >> $GITHUB_ENV
+          echo $release
+          echo $GITHUB_ENV
 
       # - name: Push to main
       #   id: push
