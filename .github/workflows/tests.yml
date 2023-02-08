@@ -131,6 +131,7 @@ jobs:
             git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-braket-plugin.git
             git push origin HEAD:main
             release=true
+            pwd
             echo "Checking out git"
           fi
 
