@@ -122,6 +122,7 @@ jobs:
           VERSION="$(cat ./VERSION)"
           release=false
           echo $release
+          echo "Checking out git"
           if [ "$MASTER_VERSION" = "$VERSION" ] ; then
             echo "$VERSION has been previously released."
           else
