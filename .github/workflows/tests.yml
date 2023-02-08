@@ -63,6 +63,11 @@ jobs:
         with:
           persist-credentials: false 
 
+      - name: check dir initial
+        run: |
+          ls -lah
+          pwd
+
       - name: Set up Python
         if: matrix.os == 'macos-latest'
         uses: actions/setup-python@v2
