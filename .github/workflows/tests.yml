@@ -117,9 +117,11 @@ jobs:
       - name: check dir
         run: |
           ls -lah
+          pwd
           MASTER_VERSION="$(echo ${{ steps.get-latest-tag.outputs.tag }} | cut -c2- )"
           VERSION="$(cat ./VERSION)"
           release=false
+          echo $release
           if [ "$MASTER_VERSION" = "$VERSION" ] ; then
             echo "$VERSION has been previously released."
           else
@@ -131,7 +133,6 @@ jobs:
             release=true
             echo "Checking out git"
           fi
-          echo $GITHUB_ENV
 
       # - name: Push to main
       #   id: push
