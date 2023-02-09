@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Operations
+
+-  Fix expression in docker yml.
+
 ## [0.22.0] - 2023-02-09
 
 ### Added
