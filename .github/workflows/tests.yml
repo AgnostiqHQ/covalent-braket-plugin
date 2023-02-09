@@ -57,7 +57,17 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     outputs:
       release: ${{ steps.push.outputs.release }}
+
     steps:
+      - name: Update git version
+        if: matrix.container == "centos/python-38-centos7"
+        run: |
+          yum install -y \
+              https://repo.ius.io/ius-release-el7.rpm \
+              https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+
+          yum swap -y git git224-core 
+
       - name: Check out head
         uses: actions/checkout@v3
         with:
