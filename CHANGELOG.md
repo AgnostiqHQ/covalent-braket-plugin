@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Added
+
+- Adding `repository_dispatch` trigger to build base executor image from core covalent
+
 ## [0.21.2] - 2023-02-09
 
 ### Fixed
