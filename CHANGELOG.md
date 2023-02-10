@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Git config safe repo flag now points to the correct path environment variable.
+
 ### Operations
 
 -  Fix expression in docker yml.
