@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "AWS Plugins version number, e.g. 0.32.3"
+        description: "AWS Braket plugin version number, e.g. 0.32.3 - For docker image version"
         type: string
       covalent_version:
         required: false
