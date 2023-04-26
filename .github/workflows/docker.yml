@@ -21,7 +21,6 @@
 name: docker
 
 on:
-  pull_request:
   repository_dispatch:
     types: ["prerelease", "stable"]
   workflow_dispatch:
@@ -59,9 +58,9 @@ jobs:
       id-token: write
       contents: read
     env:
-      prerelease: true
+      prerelease: ${{ inputs.prerelease }}
       version: ${{ inputs.stable_verion }}
-      covalent_version: "covalent>=0.202.0,<1"
+      covalent_version: ${{ inputs.covalent_version }}
     steps:
       - name: Check out release tag
         uses: actions/checkout@v2
