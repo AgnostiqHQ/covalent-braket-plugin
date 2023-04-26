@@ -59,7 +59,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      prerelease: ${{ inputs.prerelease }}
+      prerelease: true
       version: ${{ inputs.stable_verion }}
       covalent_version: "covalent>=0.202.0,<1"
     steps:
