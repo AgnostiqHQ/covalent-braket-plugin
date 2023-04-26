@@ -21,7 +21,6 @@
 name: release
 
 on:
-  pull_request:
   workflow_dispatch:
     inputs:
       stable_version:

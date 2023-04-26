@@ -21,6 +21,7 @@
 name: docker
 
 on:
+  pull_request:
   repository_dispatch:
     types: ["prerelease", "stable"]
   workflow_dispatch:
