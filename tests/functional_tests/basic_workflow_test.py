@@ -21,6 +21,7 @@ def test_basic_workflow():
     dispatch_id = ct.dispatch(simple_workflow)("Hello", "World")
 
     result_object = ct.get_result(dispatch_id, wait=True)
+    print(result_object)
     print("Actual result:", result_object.result)
     print("Expected result:", "Hello, World!")
 
