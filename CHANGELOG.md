@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.23.0] - 2023-04-26
+
 ### Added
 
 - Print statement to functional tests.
