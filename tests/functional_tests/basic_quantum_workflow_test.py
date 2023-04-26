@@ -46,6 +46,8 @@ def test_basic_quantum_workflow():
     print("Dispatch id:", dispatch_id)
     result_object = ct.get_result(dispatch_id, wait=True)
 
+    print(result_object)
+
     res, cost = result_object.result
     print("Result:", res)
     print("Cost:", cost)
