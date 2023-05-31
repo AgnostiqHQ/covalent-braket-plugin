@@ -76,7 +76,7 @@ class BraketExecutor(AWSExecutor):
     ):
         """
         Initialize the Braket executor plugin.
-        
+
         Args:
             ecr_image_uri (str): The URI of the ECR image to use for the Braket jobs.
             s3_bucket_name (str): The name of the S3 bucket to use for the Braket jobs.
