@@ -72,8 +72,26 @@ class BraketExecutor(AWSExecutor):
         credentials: str = None,
         cache_dir: str = None,
         region: str = None,
-        **kwargs,
+        log_group_name: str = None,
     ):
+        """
+        Initialize the Braket executor plugin.
+        
+        Args:
+            ecr_image_uri (str): The URI of the ECR image to use for the Braket jobs.
+            s3_bucket_name (str): The name of the S3 bucket to use for the Braket jobs.
+            braket_job_execution_role_name (str): The name of the IAM role to use for the Braket jobs.
+            classical_device (str): The name of the classical device to use for the Braket jobs.
+            storage (int): The amount of storage to use for the Braket jobs.
+            time_limit (int): The time limit for the Braket jobs.
+            poll_freq (int): The polling frequency for the Braket jobs.
+            quantum_device (str): The name of the quantum device to use for the Braket jobs.
+            profile (str): The name of the AWS profile to use for the Braket jobs.
+            credentials (str): The path to the AWS credentials file to use for the Braket jobs.
+            cache_dir (str): The path to the cache directory to use for the Braket jobs.
+            region (str): The name of the AWS region to use for the Braket jobs.
+            log_group_name (str): The name of the CloudWatch log group to use for the Braket jobs.
+            """
 
         region = region or get_config("executors.braket.region")
         credentials = credentials or get_config("executors.braket.credentials")
@@ -96,7 +114,7 @@ class BraketExecutor(AWSExecutor):
             cache_dir=cache_dir,
             time_limit=time_limit,
             poll_freq=poll_freq,
-            **kwargs,
+            log_group_name=log_group_name,
         )
 
         self.quantum_device = quantum_device or get_config("executors.braket.quantum_device")
