@@ -91,7 +91,7 @@ class BraketExecutor(AWSExecutor):
             cache_dir (str): The path to the cache directory to use for the Braket jobs.
             region (str): The name of the AWS region to use for the Braket jobs.
             log_group_name (str): The name of the CloudWatch log group to use for the Braket jobs.
-            """
+        """
 
         region = region or get_config("executors.braket.region")
         credentials = credentials or get_config("executors.braket.credentials")
