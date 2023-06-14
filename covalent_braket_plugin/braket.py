@@ -277,8 +277,13 @@ class BraketExecutor(AWSExecutor):
         """
         Abstract method that sends a cancellation request to the remote backend.
         """
-        braket = boto3.Session(**self.boto_session_options()).client("braket")
-        await braket.cancel_quantum_task(quantumTaskArn=job_handle)
+        try:
+            braket = boto3.Session(**self.boto_session_options()).client("braket")
+            await braket.cancel_quantum_task(quantumTaskArn=job_handle)
+            return True
+        except botocore.exceptions.BotoCoreError as error:
+            app_log.debug(f"Failed to cancel braket quantum task with error:{error}")
+            return False
 
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
 
