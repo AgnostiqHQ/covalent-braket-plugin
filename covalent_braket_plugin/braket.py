@@ -32,6 +32,7 @@ import boto3
 import botocore
 import cloudpickle as pickle
 from covalent._shared_files.config import get_config
+from covalent._shared_files.exceptions import TaskCancelledError
 from covalent._shared_files.logger import app_log
 from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
@@ -51,7 +52,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "cache_dir": "/tmp/covalent",
     "poll_freq": 10,
 }
-
+BATCH_JOB_NAME = "job-{dispatch_id}-{node_id}"
 executor_plugin_name = "BraketExecutor"
 
 
@@ -272,11 +273,12 @@ class BraketExecutor(AWSExecutor):
         # output, stdout, stderr
         return result, log_events, ""
 
-    async def cancel(self) -> bool:
+    async def cancel(self, task_metadata: Dict, job_handle: str) -> bool:
         """
         Abstract method that sends a cancellation request to the remote backend.
         """
-        pass
+        braket = boto3.Session(**self.boto_session_options()).client("braket")
+        await braket.cancel_quantum_task(quantumTaskArn=job_handle)
 
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
 
@@ -287,6 +289,7 @@ class BraketExecutor(AWSExecutor):
         result_filename = f"result-{dispatch_id}-{node_id}.pkl"
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
+        batch_job_name = BATCH_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
 
         app_log.debug("Validating credentials...")
         # AWS Account Retrieval
@@ -302,6 +305,8 @@ class BraketExecutor(AWSExecutor):
             "image_tag": image_tag,
         }
 
+        if await self.get_cancel_requested():
+            raise TaskCancelledError(f"Batch job {batch_job_name} requested to be cancelled")
         await self._upload_task(function, args, kwargs, upload_task_metadata)
 
         submit_metadata = {
@@ -314,9 +319,13 @@ class BraketExecutor(AWSExecutor):
         app_log.debug("Submit metadata:")
         app_log.debug(submit_metadata)
 
+        if await self.get_cancel_requested():
+            raise TaskCancelledError(f"Batch job {batch_job_name} requested to be cancelled")
         job_arn = await self.submit_task(submit_metadata)
 
         poll_metadata = {"job_arn": job_arn}
+
+        await self.set_job_handle(handle=job_arn)
 
         await self._poll_task(poll_metadata)
 
