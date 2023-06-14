@@ -222,7 +222,9 @@ async def test_cancel_braket_task(braket_executor, mocker):
     boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
     boto3_client_mock = boto3_mock.Session().client()
     boto3_client_mock.cancel_quantum_task.return_value = {"status": "CANCELLED"}
-    dummy_arn = "arn:aws:braket:us-west-2:123456789012:quantum-task/01234567-89ab-cdef-0123-456789abcdef"
+    dummy_arn = (
+        "arn:aws:braket:us-west-2:123456789012:quantum-task/01234567-89ab-cdef-0123-456789abcdef"
+    )
 
     assert await braket_executor.cancel_task({}, dummy_arn)
     assert boto3_client_mock.cancel_quantum_task.called_once_with(dummy_arn)
