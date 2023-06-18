@@ -231,8 +231,9 @@ async def test_cancel_braket_task(braket_executor, mocker):
     mock_node_id = 0
     mock_task_metadata = {"dispatch_id": mock_dispatch_id, "node_id": mock_node_id}
 
-    is_cancelled = await braket_executor.cancel(task_metadata=mock_task_metadata,
-                                          job_handle=mock_arn)
+    is_cancelled = await braket_executor.cancel(
+        task_metadata=mock_task_metadata, job_handle=mock_arn
+    )
 
     assert is_cancelled is True
     assert boto3_client_mock.cancel_quantum_task.called_once_with(quantumTaskArn=mock_arn)
@@ -252,16 +253,17 @@ async def test_cancel_failed_braket_task(braket_executor, mocker):
     mock_error = Boto3Error(
         'Could not connect to the endpoint URL: \
             "https://braket.us-east-1.amazonaws.com/v1/quantum-task/"'
-        )
+    )
     boto3_client_mock.cancel_quantum_task.side_effect = mock_error
 
     with pytest.raises(Boto3Error) as exception:
-        is_cancelled = await braket_executor.cancel(task_metadata=mock_task_metadata,
-                                                    job_handle=mock_arn)
+        is_cancelled = await braket_executor.cancel(
+            task_metadata=mock_task_metadata, job_handle=mock_arn
+        )
         assert (
-                f"Failed to cancel Braket quantum task with task metadata: \
+            f"Failed to cancel Braket quantum task with task metadata: \
                 {mock_task_metadata} and error:{mock_error}"
-                == exception
-            )
+            == exception
+        )
         assert is_cancelled is False
     assert boto3_client_mock.cancel_quantum_task.called_once_with(mock_arn)
