@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+- Implement braket executor cancel task
+
 ## [0.24.1] - 2023-04-26
 
 ### Fixed
