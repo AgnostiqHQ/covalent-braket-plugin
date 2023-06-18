@@ -275,11 +275,23 @@ class BraketExecutor(AWSExecutor):
 
     async def cancel(self, task_metadata: Dict, job_handle: str) -> bool:
         """
-        Abstract method that sends a cancellation request to the remote backend.
+        Cancel the quantum task
+
+        Args:
+            task_metadata: Dictionary with the task's dispatch_id and node id.
+            job_handle: Unique job ARN assigned to the task by AWS Braket.
+
+        Returns:
+            If the job was cancelled or not
         """
         try:
             braket = boto3.Session(**self.boto_session_options()).client("braket")
-            await braket.cancel_quantum_task(quantumTaskArn=job_handle)
+            partial_func = partial(
+                braket.cancel_quantum_task,
+                jobId=job_handle,
+                reason=f"Triggered cancellation with {task_metadata}",
+            )
+            await self._execute_partial_in_threadpool(partial_func)
             return True
         except botocore.exceptions.BotoCoreError as error:
             app_log.debug(f"Failed to cancel braket quantum task with error:{error}")
