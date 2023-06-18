@@ -104,6 +104,7 @@ async def test_run(braket_executor, mocker):
     )
     query_result_mock.return_value = "result", "", ""
     braket_executor.get_cancel_requested = AsyncMock(return_value=False)
+    braket_executor.set_job_handle = AsyncMock()
 
     await braket_executor.run(
         function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata
