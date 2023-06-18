@@ -26,9 +26,9 @@ from base64 import b64encode
 from typing import Dict, List
 from unittest.mock import AsyncMock, MagicMock
 
-from boto3.exceptions import Boto3Error
 import cloudpickle
 import pytest
+from boto3.exceptions import Boto3Error
 
 from covalent_braket_plugin.braket import BraketExecutor
 
