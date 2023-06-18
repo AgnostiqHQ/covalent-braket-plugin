@@ -288,13 +288,13 @@ class BraketExecutor(AWSExecutor):
             braket = boto3.Session(**self.boto_session_options()).client("braket")
             partial_func = partial(
                 braket.cancel_quantum_task,
-                jobId=job_handle,
-                reason=f"Triggered cancellation with {task_metadata}",
+                quantumTaskArn=job_handle
             )
             await self._execute_partial_in_threadpool(partial_func)
             return True
         except botocore.exceptions.BotoCoreError as error:
-            app_log.debug(f"Failed to cancel braket quantum task with error:{error}")
+            app_log.debug(f"Failed to cancel Braket quantum task with task metadata: \
+                          {task_metadata} and error:{error}")
             return False
 
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
