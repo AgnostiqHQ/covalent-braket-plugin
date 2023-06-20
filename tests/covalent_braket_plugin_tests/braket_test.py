@@ -31,7 +31,7 @@ import pytest
 from botocore.exceptions import ClientError
 from covalent._shared_files.exceptions import TaskCancelledError
 
-from covalent_braket_plugin.braket import BATCH_JOB_NAME, BraketExecutor
+from covalent_braket_plugin.braket import BRAKET_JOB_NAME, BraketExecutor
 
 MOCK_CREDENTIALS = "mock_credentials"
 MOCK_PROFILE = "mock_profile"
@@ -129,7 +129,7 @@ async def test_run_cancel_before_upload(braket_executor, mocker):
     node_id = 1
     results_dir = "/tmp"
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id, "results_dir": results_dir}
-    MOCK_BATCH_JOB_NAME = BATCH_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+    MOCK_BRAKET_JOB_NAME = BRAKET_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
     validate_creds_mock = mocker.patch(
         "covalent_braket_plugin.braket.BraketExecutor._validate_credentials"
     )
@@ -139,7 +139,7 @@ async def test_run_cancel_before_upload(braket_executor, mocker):
         await braket_executor.run(
             function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata
         )
-        assert exception == f"AWS Batch job {MOCK_BATCH_JOB_NAME} requested to be cancelled"
+        assert exception == f"AWS Batch job {MOCK_BRAKET_JOB_NAME} requested to be cancelled"
 
     validate_creds_mock.assert_called_once()
     braket_executor.get_cancel_requested.assert_called_once()
@@ -156,7 +156,7 @@ async def test_run_cancel_before_submit_task(braket_executor, mocker):
     node_id = 1
     results_dir = "/tmp"
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id, "results_dir": results_dir}
-    MOCK_BATCH_JOB_NAME = BATCH_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+    MOCK_BRAKET_JOB_NAME = BRAKET_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
 
     mocker.patch("covalent_braket_plugin.braket.boto3")
     validate_creds_mock = mocker.patch(
@@ -171,7 +171,7 @@ async def test_run_cancel_before_submit_task(braket_executor, mocker):
         await braket_executor.run(
             function=mock_func, args=[], kwargs={"x": 1}, task_metadata=task_metadata
         )
-        assert exception == f"AWS Batch job {MOCK_BATCH_JOB_NAME} requested to be cancelled"
+        assert exception == f"AWS Batch job {MOCK_BRAKET_JOB_NAME} requested to be cancelled"
 
     validate_creds_mock.assert_called_once()
     upload_task_mock.assert_called_once_with(
