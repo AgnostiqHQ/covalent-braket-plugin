@@ -289,7 +289,7 @@ class BraketExecutor(AWSExecutor):
             partial_func = partial(braket.cancel_quantum_task, quantumTaskArn=job_handle)
             await self._execute_partial_in_threadpool(partial_func)
             return True
-        except botocore.exceptions.BotoCoreError as error:
+        except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as error:
             app_log.debug(
                 f"Failed to cancel Braket quantum task with task metadata: \
                           {task_metadata} and error:{error}"
