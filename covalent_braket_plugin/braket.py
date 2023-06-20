@@ -52,7 +52,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "cache_dir": "/tmp/covalent",
     "poll_freq": 10,
 }
-BATCH_JOB_NAME = "job-{dispatch_id}-{node_id}"
+BRAKET_JOB_NAME = "job-{dispatch_id}-{node_id}"
 executor_plugin_name = "BraketExecutor"
 
 
@@ -305,7 +305,7 @@ class BraketExecutor(AWSExecutor):
         result_filename = f"result-{dispatch_id}-{node_id}.pkl"
         task_results_dir = os.path.join(results_dir, dispatch_id)
         image_tag = f"{dispatch_id}-{node_id}"
-        batch_job_name = BATCH_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+        batch_job_name = BRAKET_JOB_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
 
         app_log.debug("Validating credentials...")
         # AWS Account Retrieval
