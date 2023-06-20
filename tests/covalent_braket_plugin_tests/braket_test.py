@@ -29,9 +29,9 @@ from unittest.mock import AsyncMock, MagicMock
 import cloudpickle
 import pytest
 from botocore.exceptions import ClientError
+from covalent._shared_files.exceptions import TaskCancelledError
 
 from covalent_braket_plugin.braket import BATCH_JOB_NAME, BraketExecutor
-from covalent._shared_files.exceptions import TaskCancelledError
 
 MOCK_CREDENTIALS = "mock_credentials"
 MOCK_PROFILE = "mock_profile"
