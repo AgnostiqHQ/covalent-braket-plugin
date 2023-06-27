@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-- Updates __init__ signature kwargs replaced with parent for better documentation. Add docstring to __init__
+### Added
+
+- Add docstring to __init__.
+
+### Changed
+
+- Updates __init__ signature kwargs replaced with parent for better documentation.
+
+## [0.25.0] - 2023-06-20
+
+### Changed
+
+- Implement braket executor cancel task
 
 ## [0.24.1] - 2023-04-26
 
