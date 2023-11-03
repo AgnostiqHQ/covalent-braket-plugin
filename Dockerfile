@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y \
   gcc \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \
-  sagemaker-training
+RUN pip install --no-cache-dir --upgrade sagemaker-training
 
 RUN if [ -z "$PRE_RELEASE" ]; then \
   pip install "$COVALENT_PACKAGE_VERSION"; else \
