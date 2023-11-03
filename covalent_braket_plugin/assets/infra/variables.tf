@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Prefix this "name" with something unique for your deployment
 variable "name" {
-  default     = "amazon-braket-covalent"
-  description = "AWS region in which to run Braket"
+  default     = "covalent-braket"
+  description = "Name to be used in the new provisioned resources"
 }
 
 variable "aws_region" {
