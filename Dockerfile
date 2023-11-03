@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y \
   gcc \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --upgrade sagemaker-training
+RUN pip install --no-cache-dir --upgrade \
+  amazon-braket-pennylane-plugin==1.6.9 \
+  boto3==1.20.48 \
+  pennylane==0.24.0 \
+  sagemaker-training
 
 RUN if [ -z "$PRE_RELEASE" ]; then \
   pip install "$COVALENT_PACKAGE_VERSION"; else \

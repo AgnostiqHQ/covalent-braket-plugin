@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Added
+
+- Added terraform files to the repo for deploying necessary resources
+
+### Changed
+
+- Removed the `--use-feature=in-tree-build` flag from the `pip install` command in the Dockerfile as it was causing the build to fail
+
 ## [0.27.0] - 2023-09-20
 
 ### Changed
