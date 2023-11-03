@@ -1,2 +1,3 @@
 include VERSION
 include requirements.txt
+recursive-include covalent_braket_plugin/assets/infra/ *
