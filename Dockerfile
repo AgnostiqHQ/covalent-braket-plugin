@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
   gcc \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --use-feature=in-tree-build --upgrade \
+RUN pip install --no-cache-dir --upgrade \
   amazon-braket-pennylane-plugin==1.6.9 \
   boto3==1.20.48 \
   pennylane==0.24.0 \
