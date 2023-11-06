@@ -34,9 +34,9 @@ from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
-    "credentials": "",
-    "profile": "",
-    "region": "",
+    "credentials": "~/.aws/credentials",
+    "profile": "default",
+    "region": "us-east-1",
     "s3_bucket_name": os.environ.get("BRAKET_COVALENT_S3")
     or "amazon-braket-covalent-job-resources",
     "ecr_image_uri": "",
