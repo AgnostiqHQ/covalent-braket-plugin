@@ -17,7 +17,7 @@
 # Prefix this "name" with something unique for your deployment.
 # This is used in addition to the `amazon-braket` prefix to ensure uniqueness, for e.g. the full name will be `amazon-braket-<name>-bucket` for S3 bucket name.
 variable "name" {
-  default     = "covalent"
+  default     = "sankalp-covalent"
   description = "Name to be used in the new provisioned resources"
 }
 
