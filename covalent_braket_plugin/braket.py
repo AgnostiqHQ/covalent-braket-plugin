@@ -22,7 +22,7 @@ import sys
 import tempfile
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List
 
 import boto3
 import botocore
@@ -30,7 +30,6 @@ import cloudpickle as pickle
 from covalent._shared_files.config import get_config
 from covalent._shared_files.exceptions import TaskCancelledError
 from covalent._shared_files.logger import app_log
-from covalent._workflow.transport import TransportableObject
 from covalent_aws_plugins import AWSExecutor
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
@@ -280,9 +279,7 @@ class BraketExecutor(AWSExecutor):
         )
         events = all_log_events["events"]
 
-        log_events = ""
-        for event in events:
-            log_events += event["message"] + "\n"
+        log_events = "".join(event["message"] + "\n" for event in events)
 
         # output, stdout, stderr
         return result, log_events, ""
