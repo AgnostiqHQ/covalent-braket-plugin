@@ -74,6 +74,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: further-fixes-for-release
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v2
