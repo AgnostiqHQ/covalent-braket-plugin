@@ -27,7 +27,7 @@ resource "aws_s3_bucket" "braket_bucket" {
 }
 
 resource "aws_ecr_repository" "braket_ecr_repo" {
-  name                 = "${var.name}-base-executor-repo"
+  name                 = "amazon-braket-${var.name}-base-executor-repo"
   image_tag_mutability = "MUTABLE"
 
   force_delete = true
@@ -41,7 +41,7 @@ resource "aws_ecr_repository" "braket_ecr_repo" {
 }
 
 resource "aws_iam_role" "braket_iam_role" {
-  name = "${var.name}-role"
+  name = "amazon-braket-${var.name}-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
