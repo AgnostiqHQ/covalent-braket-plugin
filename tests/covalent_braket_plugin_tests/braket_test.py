@@ -192,7 +192,6 @@ async def test_submit_task(braket_executor, mocker):
 
 @pytest.mark.asyncio
 async def test_upload_task(braket_executor, mocker):
-
     """Test the package and upload method."""
     boto3_mock = mocker.patch("covalent_braket_plugin.braket.boto3")
 
